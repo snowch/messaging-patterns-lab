@@ -17,67 +17,68 @@ export function renderDiagram(id){
 }
 
 const diagrams={
-'request-and-reply':sequence('Follow one request and its receipt',[
- ['Client · REQ','Request →','Peer process · REP'],['Client waits','← Application ACK','Peer constructs reply','back'],['Client · BYE','Closing exchange →','Peer exits after handshake']
-],'The readiness pipe starts the peer; ZeroMQ carries the request and replies over guest-local TCP. The ACK does not establish durable storage.'),
+'request-and-reply':sequence('Follow a message from the client to the peer and back',[
+ ['Client (REQ)','Client sends hello to the peer →','Peer process (REP)'],['Client waits','← Peer returns ACK and hello','Peer sends the reply','back'],['Client sends BYE','Client asks the peer to close →','Peer receives BYE'],['Client receives closed','← Peer replies closed','Peer exits','back']
+],'The program starts the peer process. A separate channel tells the client the peer is ready. The request and reply travel over a TCP connection inside the Linux guest. ACK shows the peer replied.'),
 'preserve-message-frames':frames('Frame boundaries survive the exchange',[
  ['Topic bytes','orders'],['Binary bytes · hex','00 ff'],['Empty frame','0 bytes']
-],'Three frames form one message. The PAIR sockets use an IPC path; frame boundaries are different from TCP packet boundaries.'),
-'respect-the-req-state-machine':flow('Ordinary REQ has one outstanding conversation',[
- ['Ready','Send request','The socket enters receive state.'],['Waiting','Receive reply','A second send here raises EFSM.'],['Ready again','Send next request','Completing recv permits the next send.']
-],'The default REQ state machine is shown. Relaxed REQ options are separate contracts.'),
+],'Three frames form one ZeroMQ message. Two PAIR sockets pass it through an address on the guest’s filesystem.'),
+'respect-the-req-state-machine':flow('A REQ socket waits for its reply before sending again',[
+ ['Ready','Send request','The socket now expects a reply.'],['Waiting','Receive reply','Sending again while waiting raises EFSM.'],['Ready again','Send next request','Receiving the reply lets the socket send again.']
+],'This diagram shows the default REQ sequence with no special options enabled.'),
 'send-work-down-a-pipeline':flow('Moving work is not completing work',[
- ['Producer','PUSH','Queue numbered jobs.'],['Transport','One-way pipe','Move complete messages.'],['Worker','PULL','Receive and handle each job.'],['Application','Receipt path','Not configured in this fixture.']
-],'PUSH/PULL supplies no business acknowledgement. One source and one sink are exercised here.'),
+ ['Producer','PUSH','Queue numbered jobs.'],['Transport','One-way pipe','Pass complete messages in one direction.'],['Worker','PULL','Receive each job’s number and value.'],['Result','Sum the received values','The producer gets no completion reply.']
+],'The sender and receiver use PUSH and PULL. The printed total comes from the receiver’s inputs.'),
 'filter-a-publication':branch('Prefixes select different publications',
  ['Publisher','XPUB','First-frame topics: prices, pricey, orders'],
- [['SUB · prefix price','prices and pricey','Both begin with the same byte prefix.'],['SUB · prefix orders','orders','A different filter selects a different population.']],
- 'Alternative filter settings are illustrated. The lab creates one SUB at a time and waits for its subscription to reach XPUB.'),
+ [['SUB · prefix price','prices and pricey','Both begin with the same byte prefix.'],['SUB · prefix orders','orders','Only orders starts with this prefix.']],
+ 'The diagram compares two filter settings. Each run creates one subscriber and waits for its subscription to reach the publisher.'),
 'meet-the-late-subscriber':sequence('A late subscriber does not acquire old history',[
- ['XPUB publishes old','No peer →','SUB does not exist yet'],['XPUB sees subscription','← Subscribe price','SUB connects','back'],['XPUB publishes new','Live publication →','SUB receives new']
+ ['Publisher (XPUB)','Publisher sends old →','No subscriber yet'],['Publisher sees subscription','← Subscriber asks for price','Subscriber (SUB) connects','back'],['Publisher sends new','Publisher sends new to the subscriber →','Subscriber receives new']
 ],'The old publication is deliberately sent before a subscriber exists. No log or replay store retains it.'),
-'detect-a-sequence-gap':flow('A gap identifies an observation to repair',[
- ['Publisher','1 → 2 → 4','The fixture deliberately omits 3.'],['Consumer state','Expect next = 3','Compare the received sequence 4.'],['Application','Gap: 3','Detect missing data; choose a repair source.']
-],'Sequence identity and the repair policy are authored. A gap does not diagnose where or why a message disappeared.'),
+'detect-a-sequence-gap':flow('A jump in the sequence reveals a missing number',[
+ ['Publisher','1 → 2 → 4','The fixture deliberately omits 3.'],['Consumer state','Expect next = 3','Compare the received sequence 4.'],['Detector','Sequence 3 missing','Find the value in retained history if available.']
+],'The example’s own code assigns and checks these numbers. A gap gives the missing number. Finding the cause requires other evidence.'),
 'receive-without-blocking':flow('An empty queue and an empty message are different',[
  ['First receive','DONTWAIT','No message is ready.'],['Socket result','EAGAIN','No receive completed.'],['Later send','work','A message becomes available.'],['Next receive','work received','A successful receive returns its bytes.']
-],'EAGAIN is a readiness observation; it is not proof that the peer has failed.'),
-'bound-a-socket-queue':flow('Bound admission, then drain the accepted work',[
- ['Source','PUSH · SNDHWM=2','DONTWAIT makes blocked admission visible.'],['Pinned inproc fixture','4 accepted messages','Both configured queue limits participate here.'],['Next admission','EAGAIN','The receiver has not drained yet.'],['Receiver','PULL · RCVHWM=2','Drain every accepted message.']
+],'EAGAIN reports that no message was ready when the receive ran.'),
+'bound-a-socket-queue':flow('Count accepted messages before the receiver starts reading',[
+ ['Source','PUSH · SNDHWM=2','DONTWAIT returns an error if the send would have to wait.'],['Pinned inproc fixture','4 accepted messages','In this inproc run, both socket limits affect the count.'],['Next admission','EAGAIN','The receiver has not drained yet.'],['Receiver','PULL · RCVHWM=2','Read every accepted message.']
 ],'Starter settings are illustrated. This observed inproc capacity is not a universal TCP, byte or process-memory formula.'),
 'route-an-envelope':frames('ROUTER separates the route from the body',[
  ['ROUTER addressing frame','alpha'],['Application frame','job'],['Application frame','alpha']
-],'The first alpha selects a connected pipe. DEALER receives the application body; the route label is not authenticated business identity.'),
+],'ROUTER uses the first alpha to choose the connected peer. DEALER receives the application frames that follow. Authenticating a sender needs a separate policy.'),
 'reject-an-unknown-route':branch('An option changes unknown-route handling',
  ['Application','Send to unknown','No connected peer owns this route.'],
- [['MANDATORY=1','EHOSTUNREACH','The send exposes the missing route.'],['Default behavior','May discard silently','API acceptance is not delivery evidence.']],
+ [['ROUTER_MANDATORY=1','EHOSTUNREACH','The send reports that the route is missing.'],['Default behavior','May discard silently','API acceptance is not delivery evidence.']],
  'These are alternative settings for the actual ROUTER experiment. Neither proves application completion on an existing route.'),
 'match-out-of-order-replies':sequence('Correlate by ID, not by arrival position',[
- ['Submit a, b, c','Requests →','Handler holds all three'],['Match ID c to C','← c / C','Handler replies last request first','back'],['Match ID b to B','← b / B','Then b','back'],['Match ID a to A','← a / A','Then a','back']
-],'Reverse response order is intentional. The ID map reconstructs a:A, b:B, c:C independently of arrival order.'),
+ ['Client sends a, b and c','Client sends all three requests →','Handler reads all three'],['Client matches c to C','← Handler replies c and C','Handler starts with the last request','back'],['Client matches b to B','← Handler replies b and B','Handler replies to the second request','back'],['Client matches a to A','← Handler replies a and A','Handler replies to the first request','back']
+],'The example sends replies in reverse order. The client still matches each response to its ID, giving A for a, B for b and C for c.'),
 'forward-through-a-proxy':flow('The proxy forwards; the worker replies',[
- ['Parent process','REQ client','Send the business request.'],['Separate child','ROUTER ↔ DEALER','Actual zmq.proxy forwards envelopes.'],['Parent process','REP worker','Handle the body and construct the reply.']
-],'Two processes contain these three socket roles. A proxy topology does not create a durable job ledger.'),
+ ['Parent process','REQ client','Send the business request.'],['Separate child','ROUTER ↔ DEALER','zmq.proxy forwards the message and its addressing frames.'],['Parent process','REP worker','Handle the body and construct the reply.']
+],'The client and the worker share one process. The proxy runs in another process and forwards messages between them.'),
 'retry-with-stable-identity':sequence('A missing receipt can follow a completed effect',[
- ['REQ attempt 1','charge-a →','Handler applies 12'],['Client times out','Reply deliberately withheld','Effect already exists','lost'],['New REQ · attempt 2','same charge-a →','Authored duplicate guard'],['Client receives receipt','← ACK charge-a','No second effect with the starter policy','back']
-],'This is the deliberate starter scenario. The identity set and effect list are volatile application policy; Run shows actual attempts and effects.'),
+ ['REQ attempt 1','charge-a →','Handler applies 12'],['Client times out','Reply deliberately withheld','Effect already exists','lost'],['New REQ · attempt 2','same charge-a →','Authored duplicate guard'],['Client receives the reply','← Handler replies ACK charge-a','The same ID prevents a second effect in the starter','back']
+],'The example keeps processed IDs and applied charges in memory. The run shows both attempts and the entries in the charge list.'),
 'dispatch-with-worker-credit':flow('A credit represents application readiness',[
- ['Worker','READY','Advertise one available slot.'],['Broker policy','Assign one job','Remove that worker’s credit.'],['Worker','DONE + assignment','Return completion evidence.'],['Broker policy','Credit returned','The worker becomes eligible again.']
-],'The lab drives workers serially in one process. This explicit policy is not a concurrent service benchmark or a durable ownership protocol.'),
-'replay-a-cached-value':flow('A current-value service adds retained state',[
- ['Authored dictionary','price = 12','Retain the latest value.'],['XPUB','Subscription arrives','The application reacts to the control.'],['Publisher policy','Cached 12, then live 15','Emit the selected values.'],['Late SUB','Current view','This is not complete audit history.']
-],'The snapshot/live case is frozen for teaching. Real concurrent updates need a versioned handoff and delete policy.'),
+ ['Worker','READY','Tell the dispatcher the worker can accept one job.'],['Broker policy','Assign one job','Remove that worker’s credit.'],['Worker','DONE + assignment','Tell the dispatcher that the assigned job finished.'],['Broker policy','Credit returned','The worker becomes eligible again.']
+],'The lab uses worker sockets one at a time in a single process. Its dispatcher decides when to return a worker’s permission to take another job.'),
+'replay-a-cached-value':flow('A new subscriber can receive the last stored value',[
+ ['Dictionary in the example','price = 12','Store the latest price in memory.'],['XPUB','Subscription arrives','The publisher sees the subscription request.'],['Publisher policy','Cached 12, then live 15','Send both values to the subscriber.'],['Late SUB','Current view','This is not complete audit history.']
+],'The example sends one stored price before the live update. With concurrent updates, use versions to decide which value comes next and how to apply deletes.'),
 'observe-a-connection':flow('Three observations establish different things',[
  ['Transport','CONNECTED','A TCP connection exists.'],['Protocol','HANDSHAKE_SUCCEEDED','The ZeroMQ handshake completed.'],['Application','pong received','This one handler exchange completed.']
-],'The monitor supplies transport/protocol evidence. The application reply is a separate observation; none guarantees future service health.'),
-'choose-connect-and-close-policy':branch('Disconnected admission has an explicit policy',
+],'The monitor reports the connection and handshake. Receiving pong shows this application exchange finished.'),
+'choose-connect-and-close-policy':branch('Decide whether to queue work before a connection is ready',
  ['connect','Asynchronous connection request','There is no listener on the chosen endpoint.'],
- [['IMMEDIATE=1','DONTWAIT returns EAGAIN','Admission requires a completed connection.'],['IMMEDIATE=0','May queue pending work','Acceptance supplies no receiver acknowledgement.']],
- 'The lab closes with LINGER=0 and discards pending work. Admission, transport drainage and business completion are separate boundaries.'),
+ [['IMMEDIATE=1','A send with DONTWAIT raises EAGAIN','Admission requires a completed connection.'],['IMMEDIATE=0','May queue pending work','Acceptance supplies no receiver acknowledgement.']],
+ 'Closing with LINGER=0 discards any messages still waiting to be sent. The example checks which send is accepted and whether any reply arrives.'),
 'encrypt-a-connection':flow('CURVE protects the actual local exchange',[
- ['Client trust','Pin server public key','Use ephemeral synthetic keys in the lab.'],['Real mechanism','CURVE handshake','libzmq establishes the protected connection.'],['Application','Request → ACK','The handler exchanges encrypted traffic.']
- ],'The starter does not configure a ZAP allowlist or business permission check. Those are separate production decisions, not an implicit result of encryption.'),
-'diagnose-the-missing-receipt':sequence('Keep logical work distinct from physical attempts',[
- ['One logical request','attempt 1 →','Effect 12; receipt omitted'],['Same logical identity','attempt 2 →','Dedup policy decides whether to repeat'],['Client matches receipt','← stable request ID','Correct reply mapping','back'],['Design review','Recovery boundary?','Choose actual persistence and effect contracts']
-],'The capstone composes real socket experiments and authored policy. A correct final dictionary does not establish durable exactly-once effects.')
+ ['Client trust','Pin server public key','Use a fresh test key for each run.'],['Real mechanism','CURVE handshake','libzmq establishes the protected connection.'],['Application','Request → ACK','ZeroMQ protects the traffic. The handler reads the received message and sends ACK.']
+ ],'The starter exercises encrypted transport. A deployment must separately decide which client keys it trusts and which requests those clients may make.'),
+'diagnose-the-missing-receipt':branch('Compare the retry evidence and the response matching evidence',
+ ['One run','Two independent experiments','Inspect the charge list and the response map separately.'],
+ [['Retry','Two attempts use charge-a','The first handler applies 12 and withholds its reply. The rule for repeated IDs decides whether the next attempt applies another 12.'],['Response matching','Replies for c, b and a','The client uses the request IDs to match them to C, B and A.']],
+ 'The charge list and processed IDs are kept in memory. A lasting payment record requires a separate storage or service agreement.')
 };

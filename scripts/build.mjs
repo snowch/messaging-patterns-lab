@@ -29,19 +29,158 @@ const shell=(title,body,p='')=>`<!doctype html><html lang="en"><head><meta chars
 const lookup=id=>id.startsWith('advanced/')?chapters.find(c=>c.slug===id.slice(9)):rawLessons.find(l=>l.slug===id);
 const breadcrumb=(id,p='../')=>{const current=order.find(x=>x.id===id);return `<nav class="breadcrumb" aria-label="Breadcrumb"><ol><li><details class="course-switcher"><summary>Course <span aria-hidden="true">⌄</span></summary><nav class="course-panel" aria-label="Course contents"><a class="course-overview" href="${p}index.html#curriculum">Course overview</a>${parts.map((part,i)=>`<details class="course-group" ${i+1===current.part?'open':''}><summary>${i+1} · ${part.title}</summary><ol>${part.items.map(key=>`<li><a href="${p}${href(key)}" ${key===id?'aria-current="page"':''}><span class="course-number">${order.findIndex(x=>x.id===key)+1}</span><span>${lookup(key).title}${key===id?'<small>Current chapter</small>':''}</span></a></li>`).join('')}</ol></details>`).join('')}</nav></details></li><li><span aria-hidden="true">/</span><a href="${p}index.html#part-${current.part}">${current.partTitle}</a></li><li><span aria-hidden="true">/</span><span aria-current="page">${lookup(id).title}</span></li></ol></nav>`};
 const sequence=(id,p='../')=>{const n=order.findIndex(x=>x.id===id);return `<nav class="pagination" aria-label="Course sequence"><a href="${n?p+href(order[n-1].id):p+'index.html'}"><span>${n?'Previous chapter':'Course overview'}</span><strong>${n?lookup(order[n-1].id).title:'Choose a chapter'}</strong></a>${n<order.length-1?`<a class="page-next" href="${p}${href(order[n+1].id)}"><span>Next chapter →</span><strong>${lookup(order[n+1].id).title}</strong></a>`:''}</nav>`};
-const intro=(id)=>{const item=lookup(id),n=order.findIndex(x=>x.id===id)+1;return `<header class="chapter-intro">${breadcrumb(id)}<p class="eyebrow">Chapter ${n} · ${id.startsWith('advanced/')?'Read & reason':'Real ZeroMQ'}</p><h1>${item.title}</h1><p class="standfirst">${item.short}</p></header><div class="goal"><b>What you’ll learn</b><p>${item.goal}</p></div><p class="note">Prerequisite: ${n>1?`<a href="../${href(order[n-2].id)}">${lookup(order[n-2].id).title}</a>`:'Basic Python functions, lists and dictionaries'}. <a href="../index.html#curriculum">Course map →</a></p>`};
+const intro=(id)=>{const item=lookup(id),n=order.findIndex(x=>x.id===id)+1;return `<header class="chapter-intro">${breadcrumb(id)}<p class="eyebrow">Chapter ${n}</p><h1>${item.title}</h1><p class="standfirst">${item.short}</p></header>${id.startsWith("advanced/")?"":`<div class="goal"><b>What you’ll learn</b><p>${item.goal}</p></div>`}<p class="note">Prerequisite: ${n>1?`<a href="../${href(order[n-2].id)}">${lookup(order[n-2].id).title}</a>`:'Basic Python functions, lists and dictionaries'}. <a href="../index.html#curriculum">Course map →</a></p>`};
 const practice=renderExercise;
-const mark=(id,reading=false)=>`<div class="completion"><label><input id="${reading?'reading-done':'done'}" type="checkbox"> Mark chapter as read</label><span id="${reading?'reading-save':'save-status'}" role="status">Reading marks and successful experiments are separate.</span></div>`;
+const mark=(id,reading=false)=>`<div class="completion"><label><input id="${reading?'reading-done':'done'}" type="checkbox"> Mark chapter as read</label><span id="${reading?'reading-save':'save-status'}" role="status"></span></div>`;
 const cards=parts.map((part,i)=>`<section class="course-part" id="part-${i+1}"><div class="part-heading"><span>Part ${i+1}</span><h3>${part.title}</h3><p>${part.outcome}</p></div><ol class="chapter-list">${part.items.map(id=>`<li><a class="lesson-card chapter-link" href="${href(id)}"><span class="chapter-number">${String(order.findIndex(x=>x.id===id)+1).padStart(2,'0')}</span><span class="chapter-copy"><strong>${lookup(id).title}</strong><span>${lookup(id).short}</span></span><span class="chapter-kind" data-progress="${id}" data-kind="${id.startsWith('advanced/')?'reading':'lab'}">${id.startsWith('advanced/')?'Reading':'Lab'}</span></a></li>`).join('')}</ol></section>`).join('');
 await fs.writeFile('dist/index.html',shell('Learn messaging patterns with ZeroMQ',`<main id="main" class="course-home"><header class="home-intro"><p class="eyebrow">Hands-on Python lessons</p><h1>Messaging patterns<br>with ZeroMQ.</h1><p class="home-description">Send requests, publish updates and route work between processes. Learn how queues, timeouts and retries affect delivery and completion.</p><div class="home-actions"><a class="primary" href="lessons/request-and-reply.html">Start lesson 1 →</a><a href="#curriculum">Browse the course</a></div><p class="home-meta">20 runnable lessons <span aria-hidden="true">·</span> 10 design readings <span aria-hidden="true">·</span> Basic Python</p></header><section id="curriculum" class="curriculum"><h2>Course contents</h2>${cards}</section><section class="closing"><h2>Continue with event streaming</h2><p>Explore retained logs, event-time windows and stateful recovery in <a href="https://snowch.github.io/event-streaming-lab/">Event Streaming Lab →</a></p></section></main>`));
-for(const l of rawLessons){
- const i=rawLessons.findIndex(x=>x.slug===l.slug);
- const body=`<main id="main" class="lesson" data-lesson="${i}">${intro(l.slug)}<section><h2>The situation</h2><p>${l.intro}</p><p>${l.concept}</p>${renderDiagram(l.slug)}</section><section class="prediction"><span class="eyebrow">Pause & predict</span><p>${l.predict}</p><span>Make a prediction, then inspect the evidence.</span></section><section id="experiment"><div class="experiment-title"><h2>Run the experiment</h2><span class="pill">Real PyZMQ / libzmq</span></div><details class="fixture"><summary>Inspect the input and synchronization</summary><p>${l.fixture}</p></details><div class="runtime-contract"><div><span class="eyebrow">Real sockets · local Linux</span><h3>ZeroMQ in your browser</h3><p>Actual libzmq messages over guest-local TCP or inproc. Application policies and durability limits are named explicitly.</p></div><div><b>A fresh guest for every Run</b><p>First use loads about ${mib} MiB. Stop destroys the guest. Reading and worked results need no VM.</p><a href="../about.html#runtime">Runtime & reset contract →</a></div></div><div class="workbench"><div class="code-cell"><div class="cell-head"><span>experiment.py</span><button id="restore">Restore code</button></div><label class="sr-only" for="code">Python experiment</label><textarea id="code" spellcheck="false">${esc(l.code)}</textarea><div class="cell-tools"><button id="run" class="primary">Run in Linux</button><button id="stop" disabled>Stop</button><button id="download">Download .py</button><span id="status" role="status">Ready · Linux loads on first Run</span><progress id="runtime-progress" hidden aria-label="Runtime download"></progress></div></div><p class="note" id="draft-note">Your draft stays in this browser. Socket queues, processes, files and application state are temporary. Stop destroys the guest; the next Run starts fresh.</p><div id="execution-note" role="status"></div><div id="visual" aria-label="Experiment trace"></div><div class="output-head"><h3>Console · actual output</h3><button id="export" disabled>Export run</button></div><pre id="output" tabindex="0">Run the code to see its output here.</pre></div><details class="worked"><summary>Worked result · readable without running Python</summary><pre>${esc(JSON.stringify(sampleBy[l.slug],null,2))}</pre><p>Generated by executing the exact published editor source during the build.</p></details><h3>Look for this</h3><p>${l.observe}</p><div class="change"><b>Change one thing</b><p>${l.change}</p></div></section><details class="operator-source"><summary>Inspect the socket implementation</summary><p>The editor calls this exact helper. <a href="../python/messaging.py">messaging.py</a> supplies shared imports, socket cleanup and application policy; <a href="../python/peer.py">peer.py</a> supplies separate-process peers. Download Python includes both files.</p><pre><code>${esc(functions[l.fn])}</code></pre></details><section class="underhood"><span class="eyebrow">Under the hood</span><h2>Account for the operation.</h2><p class="note">n = messages; k = retained identities; w = workers. Payload bytes, frame count, evidence collection, startup and rendering have separate costs.</p><div class="table-scroll"><table><thead><tr><th scope="col">Question</th><th scope="col">Mechanism and boundary</th></tr></thead><tbody>${l.costs.map((text,j)=>`<tr><th scope="row">${['Work','State','Movement','Progress','Recovery'][j]}</th><td>${text}</td></tr>`).join('')}</tbody></table></div></section>${practice(l)}<section class="limits"><h3>Experiment scope</h3><p>${l.limit}</p><a href="${l.source}">Primary reference →</a> · <a href="../about.html">Runtime and model boundaries</a></section>${mark(l.slug)}${sequence(l.slug)}</main>`;
+for(const [i,l] of rawLessons.entries()){
+ const change = l.changeCall ? `Replace the last line in the editor with <code>result = ${esc(l.changeCall)}</code>. ` : '';
+ const isFirst = l.slug === 'request-and-reply';
+ const body=`<main id="main" class="lesson" data-lesson="${i}">
+  ${intro(l.slug)}
+  <section>
+   <h2>The situation</h2>
+   <p>${l.intro}</p><p>${l.concept}</p>
+   ${renderDiagram(l.slug)}
+  </section>
+  <section class="prediction"><h2>Before you run</h2><p>${l.predict}</p></section>
+  <section id="experiment">
+   <h2>Run the experiment</h2>
+   <p class="fixture">${l.fixture}</p>
+   <p class="run-instructions">For the original example, click <strong>Restore code</strong> if it is shown, then click <strong>Run in Linux</strong>. Compare your output with the worked result.</p>
+   <p class="note">Each run starts a temporary Linux environment. The first run loads about ${mib} MiB. <a href="../about.html#runtime">How the runtime works</a></p>
+   <noscript><style>.workbench,.run-instructions{display:none}</style><p class="note">You can follow the worked result below. Running the code uses JavaScript.</p></noscript>
+   <div class="workbench">
+    <div class="code-cell">
+     <div class="cell-head"><label for="code">experiment.py</label><button id="restore" type="button" hidden>Restore code</button><button id="recover" type="button" hidden>Recover saved edit</button></div>
+     <textarea id="code" rows="4" spellcheck="false" autocapitalize="off" aria-label="Python experiment">${esc(l.code)}</textarea>
+     <div class="cell-tools">
+      <button id="run" type="button" class="primary">Run in Linux</button>
+      <button id="stop" type="button" hidden disabled>Stop</button>
+      <span id="status" role="status"></span>
+      <progress id="runtime-progress" hidden aria-label="Runtime download"></progress>
+     </div>
+    </div>
+    <p class="note" id="draft-note">Your edits are saved in this browser when storage is available.</p>
+    <p id="draft-status" role="status"></p>
+    <div class="run-error" id="run-error" hidden>
+     <p id="error-summary"></p>
+     <details id="error-more" hidden><summary>Full error details</summary><pre id="error-output"></pre></details>
+    </div>
+    <div id="completed-run" hidden>
+     <div class="output-head"><h3>Run output</h3></div>
+     <p id="execution-note"></p>
+     <pre id="output" tabindex="0"></pre>
+     <div id="visual" aria-label="Experiment trace"></div>
+    </div>
+    <details class="downloads">
+     <summary>Downloads</summary>
+     <div><button id="download" type="button">Download code</button><button id="export" type="button" disabled>Export run</button></div>
+    </details>
+   </div>
+   <h3>Worked result</h3>
+   <p>${l.observe}</p>
+   <details class="worked"><summary>Full output from the original example</summary><pre>${esc(JSON.stringify(sampleBy[l.slug],null,2))}</pre><p>The build ran the original editor code to produce this output.</p></details>
+   <div class="change"><h3>${l.inspectOnly?'Read the implementation':'Try one change'}</h3><p>${change}${l.change}</p></div>
+  </section>
+  <details class="operator-source">
+   <summary>Inspect the socket implementation</summary>
+   <p>The editor calls this read-only helper. ${isFirst?'A ZeroMQ context is the object a process uses to create sockets. The program starts the server process. A pipe carries its ready message and port number to the client. The ZeroMQ sockets carry the request and reply. ':''}<a href="../python/messaging.py">Read all socket helpers</a> or <a href="../python/peer.py">read the separate-process code</a>. The code download includes both files.</p>
+   <pre><code>${esc(functions[l.fn])}</code></pre>
+  </details>
+  <details class="underhood">
+   <summary>Costs, waiting and recovery</summary>
+   <div class="table-scroll"><table><thead><tr><th scope="col">Aspect</th><th scope="col">What to account for</th></tr></thead><tbody>${l.costs.map((value,j)=>`<tr><th scope="row">${['Work','Stored information','Message path','Waiting','Recovery'][j]}</th><td>${value}</td></tr>`).join('')}</tbody></table></div>
+  </details>
+  ${practice(l)}
+  <section class="limits"><h3>Experiment scope</h3><p>${l.limit}</p><a href="${l.source}">ZeroMQ reference</a> · <a href="../about.html">Runtime and model boundaries</a></section>
+  ${mark(l.slug)}${sequence(l.slug)}
+ </main>`;
  await fs.writeFile('dist/lessons/'+l.slug+'.html',shell(l.title,body,'../'));
 }
-for(const c of chapters){const id='advanced/'+c.slug;const body=`<main id="main" class="lesson advanced-lesson" data-reading="${id}">${intro(id)}<section><h2>The situation</h2><p>${c.intro}</p></section>${c.sections.slice(0,2).map(([title,...p])=>`<section><h2>${title}</h2>${p.map(t=>`<p>${t}</p>`).join('')}</section>`).join('')}<section class="worked-trace"><span class="eyebrow">Follow a concrete case</span><h2>Inspect the boundaries.</h2><div class="table-scroll"><table><caption>${c.short}</caption><thead><tr>${c.headers.map(t=>`<th scope="col">${t}</th>`).join('')}</tr></thead><tbody>${c.rows.map(row=>`<tr>${row.map(t=>`<td>${t}</td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="note">${c.traceNote}</p></section>${c.sections.slice(2).map(([title,...p])=>`<section><h2>${title}</h2>${p.map(t=>`<p>${t}</p>`).join('')}</section>`).join('')}${practice(c)}<section class="limits"><h3>Name the guarantee boundary</h3><p>${c.framework}</p></section><section><h3>Read the primary sources</h3><ul>${c.sources.map(([label,url])=>`<li><a href="${url}">${label}</a></li>`).join('')}</ul><p class="note">These scenarios and worked cases are original teaching material. “Latest” and “stable” references can change; use documentation matching the deployed versions.</p></section>${mark(id,true)}${sequence(id)}</main>`;await fs.writeFile('dist/advanced/'+c.slug+'.html',shell(c.title,body,'../'))}
-await fs.writeFile('dist/advanced/index.html',shell('Read and reason',`<main id="main" class="about"><span class="eyebrow">Design and operations</span><h1>Defend the<br>conversation.</h1><p>Ten substantial readings, interleaved with twenty real socket investigations. Work through the failure cases and independent questions without JavaScript or any Linux download.</p>${chapters.map(c=>`<a class="reading-card" href="${c.slug}.html"><div><h3>${c.title}</h3><p>${c.short}</p></div></a>`).join('')}<p><a href="../index.html#curriculum">Follow the complete course order →</a></p></main>`,'../'));
-await fs.writeFile('dist/about.html',shell('Field notes',`<main id="main" class="about"><h1>Real sockets.<br>Explicit contracts.</h1><h2>Before you begin</h2><p>Basic Python functions, dictionaries, lists and exceptions are enough to start. Seven parts contain 20 executable investigations and 10 substantial readings. Predict outcomes, inspect the real helper implementation, change one assumption, then answer the independent question. Reading marks do not grade understanding or successful runs.</p><h2 id="runtime">What runs</h2><p>CPython 3.12.16, PyZMQ 27.3.0 and libzmq 4.3.5 run as native Linux software inside the self-hosted container2wasm/Bochs WebAssembly VM. TCP is real guest-local loopback; inproc uses actual libzmq queues. The request/reply and proxy investigations start separate Python processes. Other fixtures deliberately drive several socket owners serially in one process and do not claim concurrent service performance.</p><p>Opening a chapter loads no VM. Run downloads about ${mib} MiB of verified runtime assets on first use. A desktop browser with several hundred megabytes of free memory is recommended. Each Run starts a fresh guest. Stop destroys the worker and guest; variables, processes, queues and files disappear. Drafts, themes and reading marks use localStorage under mpl: keys. Runtime downloads have a five-minute limit; guest startup retries once after 60 seconds before editor Python begins. Programs have a three-minute execution limit and are never automatically retried.</p><h2>What the experiments establish</h2><p>REQ/REP state, multipart framing, subscription controls, HWM admission, routing envelopes, monitors, actual zmq.proxy and CURVE use real APIs. Duplicate suppression, credits, gap detection, latest-value replay and effect lists are authored application policies. Their volatile state is not a durable broker, payment service, distributed lease or transactional inbox. A local successful exchange does not establish multi-host failover or exactly-once external effects.</p><h2>Privacy and reachability</h2><p>Editor source stays on the device. The browser requests only course assets; no execution backend, account, analytics or network relay is used. Guest loopback is enabled in a private user/network namespace. These exercises do not expose external TCP endpoints. Chromium is tested; other browsers and mobile execution need separate validation. The reading path works without JavaScript. No complete offline installation is claimed.</p><h2>Performance</h2><p>The <a href="performance.html">native performance guide</a> states the measured boundary and validates replies. Emulation, deterministic counts and local fixtures do not establish production throughput or tail latency.</p><h2>Why Run takes time</h2><p>Every Run boots a fresh Linux guest and starts native Python and ZeroMQ. Loaded assets are reused on the same page. Where storage allows, verified VM and Python asset bytes are also cached in IndexedDB across chapter navigation; a manifest change replaces that cache. No editor source, guest memory or results are stored in the runtime cache. Clearing site data removes it, and unavailable storage falls back to ordinary loading.</p><p>The completion status shows elapsed seconds. Export run includes measured preparation, guest startup, execution and total milliseconds. These device-specific emulation times are not production service measurements. Stop still destroys the guest; cached assets do not preserve Python globals, files, sockets or messages.</p><h2>Sources and licenses</h2><p>This is original course material inspired by the messaging questions explored in Pieter Hintjens’s <a href="https://hintjens.wdfiles.com/local--files/main:files/cc1pe.pdf">Code Connected Volume 1: Learning ZeroMQ</a> (2013, CC BY-SA 3.0). Book chapters and example programs are not reproduced. Consult the <a href="https://zguide.zeromq.org/">ZeroMQ Guide</a>, <a href="https://libzmq.readthedocs.io/en/latest/">libzmq reference</a> and <a href="https://pyzmq.readthedocs.io/en/stable/">PyZMQ documentation</a>.</p><p><a href="runtime/README.md">Runtime source/build provenance</a> · <a href="runtime/THIRD-PARTY-NOTICES.md">Component notices</a> · <a href="assets/linux/manifest.json">Runtime hashes</a> · <a href="assets/fonts/README.txt">Font licenses</a>. The course uses the GPU Lab v2 visual system and the verified browser Linux architecture of <a href="https://snowch.github.io/event-streaming-lab/">Event Streaming Lab</a>.</p></main>`));
-await fs.writeFile('dist/performance.html',shell('Measure a stated boundary',`<main id="main" class="about"><h1>Measure the<br>completed exchange.</h1><p>Run <a href="harnesses/native-benchmark.py">native-benchmark.py</a> on a normal Linux/Python installation after installing pyzmq==27.3.0.</p><pre>python native-benchmark.py --count 1000 --trials 5</pre><h2>What is measured</h2><p>One process, one context, inproc REQ/REP, eight payload bytes and four send/receive API calls per completed exchange. The timer excludes context/socket setup and includes reply validation. The report records trial durations, median time, completed count, throughput and actual library versions. No fixed timings are prefilled.</p><h2>Compare meaningfully</h2><p>Change message bytes, frames, serialization, concurrency or transport one at a time, then verify replies again. Record host/CPU, software versions, warmup, variance, queue/backlog and pending age. This harness is a narrow local boundary, not a distributed or durable service benchmark. Browser emulation includes additional costs.</p><p><a href="advanced/measure-and-limit-a-service.html">Read the capacity and measurement chapter →</a></p></main>`));
+const comparisons = [
+ ['Send, commit and reply', 'Compare “Handler commits; ACK lost” and “ACK before commit”. What can the caller see and what must storage confirm?'],
+ ['Socket ownership and transport', 'Compare inproc and TCP loopback. Which can carry a message between two processes in this guest?'],
+ ['What a late reader can recover', 'Compare a cache with a snapshot plus updates. What must agree before the reader combines the snapshot and updates?'],
+ ['Clues after a missed reply', 'Compare a deadline with a heartbeat. After a missed reply and a received heartbeat, what do you still need to check about the first attempt?'],
+ ['Measuring a service', 'Compare the send loop with a completed round trip. Which count requires a reply?'],
+ ['What the dispatcher knows', 'Which row says a route exists? Which row tells the dispatcher that a worker can take a job?'],
+ ['Which changes can break compatibility', 'Which field can change meaning even when multipart and JSON decoding succeed?'],
+ ['Protection and permission', 'Compare a successful CURVE exchange with an authorized request. What evidence would show that the caller may issue the request?'],
+ ['Crashes between effects and saved positions', 'Compare the first two crash points. Which can skip an effect, and which can repeat a delivery?'],
+ ['Evidence for recovery', 'Pick one shop interaction. What evidence would you need before trusting its recovery claim?'],
+];
+
+for(const [i,c] of chapters.entries()){
+ const id='advanced/'+c.slug;
+ const [heading,prompt]=comparisons[i];
+ const sections=(items)=>items.map(([title,...paragraphs])=>`<section><h2>${title}</h2>${paragraphs.map(text=>`<p>${text}</p>`).join('')}</section>`).join('');
+ const body=`<main id="main" class="lesson advanced-lesson" data-reading="${id}">
+  ${intro(id)}
+  <section><h2>The situation</h2><p>${c.intro}</p></section>
+  ${sections(c.sections.slice(0,2))}
+  <section class="worked-trace">
+   <h2 id="comparison-heading">${heading}</h2>
+   <p class="note">Illustrative case.</p><p>${prompt}</p>
+   <div class="table-scroll"><table aria-labelledby="comparison-heading"><thead><tr>${c.headers.map(text=>`<th scope="col">${text}</th>`).join('')}</tr></thead><tbody>${c.rows.map(row=>`<tr><th scope="row">${row[0]}</th>${row.slice(1).map(text=>`<td>${text}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+  </section>
+  ${sections(c.sections.slice(2))}
+  ${practice(c)}
+  <section><h2>Primary sources</h2><ul>${c.sources.map(([label,url])=>`<li><a href="${url}">${label}</a></li>`).join('')}</ul></section>
+  ${mark(id,true)}${sequence(id)}
+ </main>`;
+ await fs.writeFile('dist/advanced/'+c.slug+'.html',shell(c.title,body,'../'));
+}
+
+await fs.writeFile('dist/advanced/index.html',shell('Design readings',`<main id="main" class="about">
+ <h1>Design readings</h1>
+ <p>Work through ten design cases without running code. The full course places these readings alongside the socket experiments.</p>
+ ${chapters.map(c=>`<a class="reading-card" href="${c.slug}.html"><div><h2>${c.title}</h2><p>${c.short}</p></div></a>`).join('')}
+ <p><a href="../index.html#curriculum">See the full course order</a></p>
+</main>`,'../'));
+
+await fs.writeFile('dist/about.html',shell('Field notes',`<main id="main" class="about">
+ <h1>Field notes</h1>
+ <h2>Before you begin</h2>
+ <p>Start with basic Python functions, lists, dictionaries and exceptions. Read the setup and the question before each experiment. Run the original code, then try the suggested change. You can also read the worked result and answer the understanding question without running code.</p>
+ <p>Use Mark chapter as read to track your place. Try the question and its explanation to check your understanding.</p>
+ <h2 id="runtime">What Run in Linux starts</h2>
+ <p>Each run starts a temporary Linux environment in your browser. Python uses real ZeroMQ sockets inside that environment. The request/reply and proxy lessons start two separate Python processes. Several other examples use more than one socket inside a single process.</p>
+ <p>The first run loads about ${mib} MiB. Use a desktop browser with enough available memory. The reading path works without JavaScript or a Linux download. Chromium is tested for execution.</p>
+ <p>Stop ends the current run and discards its Linux files, processes and queued messages. A new run starts from the example’s setup. This browser saves edited code, reading marks and your theme when storage is available. Download the code if you want a copy outside the browser. Export run saves the last successful output and the code that produced it.</p>
+ <h2>What the experiments show</h2>
+ <p>ZeroMQ performs the local socket operations. The Python examples add their own rules for skipping duplicate IDs, giving permission to send work, detecting gaps and sharing the latest value. Those rules keep their data only for the current run. Test storage, recovery and network failures separately when you need production guarantees.</p>
+ <h2>Where your code runs</h2>
+ <p>Your editor code runs on your device. The browser fetches the course files. Guest sockets can communicate inside the temporary Linux environment. Execution requires no account or remote server.</p>
+ <h2>Comparing performance</h2>
+ <p>Run shows the elapsed time for this browser, including startup. The export lists preparation, guest startup, execution and total times separately. The <a href="performance.html">native benchmark guide</a> explains how to measure a completed local exchange on your own Linux machine.</p>
+ <details>
+  <summary>Versions, downloads and time limits</summary>
+  <p>The runtime uses CPython 3.12.16, PyZMQ 27.3.0 and libzmq 4.3.5 inside container2wasm/Bochs. The browser checks downloaded assets against their published hashes. When storage is available, the browser can reuse verified assets across chapters. Each run still starts a fresh guest.</p>
+  <p>The runtime can spend up to five minutes loading assets. If guest startup takes more than 60 seconds, the runtime tries starting the guest again once before Python runs. Once Python starts, it can run for up to three minutes. After that, the environment stops. You can edit the code and try again.</p>
+  <p><a href="runtime/README.md">Runtime source and build</a> · <a href="runtime/THIRD-PARTY-NOTICES.md">Component notices</a> · <a href="assets/linux/manifest.json">Runtime hashes</a> · <a href="assets/fonts/README.txt">Font licenses</a></p>
+ </details>
+ <h2>Primary sources</h2>
+ <ul>
+  <li>Pieter Hintjens’s <a href="https://hintjens.wdfiles.com/local--files/main:files/cc1pe.pdf">Code Connected Volume 1: Learning ZeroMQ</a> (2013, CC BY-SA 3.0)</li>
+  <li><a href="https://zguide.zeromq.org/">ZeroMQ Guide</a></li>
+  <li><a href="https://libzmq.readthedocs.io/en/latest/">libzmq reference</a></li>
+  <li><a href="https://pyzmq.readthedocs.io/en/stable/">PyZMQ documentation</a></li>
+ </ul>
+ <p>Use the documentation for the version your service runs.</p>
+</main>`));
+
+await fs.writeFile('dist/performance.html',shell('Measure a completed exchange',`<main id="main" class="about">
+ <h1>Measure a completed exchange</h1>
+ <p>Download <a href="harnesses/native-benchmark.py">native-benchmark.py</a>. On your Linux machine, install <code>pyzmq==27.3.0</code> and run the script in a terminal.</p>
+ <pre>python native-benchmark.py --count 1000 --trials 5</pre>
+ <h2>What the timer includes</h2>
+ <p>One Python process creates a request socket and a reply socket. They connect inside that process using <code>inproc</code>. The timer starts after setup. Each exchange sends an eight-byte payload, receives it at the server, sends it back and checks that the client receives the same bytes.</p>
+ <h2>Read the results</h2>
+ <p>Check <code>completed</code> in each entry of <code>trials</code> first. It should equal <code>--count</code>. Use <code>median_seconds</code> to compare the middle trial time with the same exchange count. Record the machine, Python and ZeroMQ versions when you compare results.</p>
+ <p>This benchmark measures a local exchange in one process. It runs outside the browser. Timing a production service also requires its network, workload and storage costs.</p>
+ <p><a href="advanced/measure-and-limit-a-service.html">Read the service capacity chapter</a></p>
+</main>`));
 await fs.rm('.preview/messaging-patterns-lab',{recursive:true,force:true});await fs.mkdir('.preview/messaging-patterns-lab',{recursive:true});await fs.cp('dist','.preview/messaging-patterns-lab',{recursive:true});
 console.log(`Built ${order.length} chapters: ${rawLessons.length} investigations and ${chapters.length} readings; ${mib} MiB verified runtime.`);
