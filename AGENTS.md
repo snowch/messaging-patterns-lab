@@ -1,0 +1,3 @@
+# Messaging Patterns Lab
+
+Apply `.agents/skills/ux/SKILL.md` and `.agents/skills/learning-design/SKILL.md` before and after changes. Run every example natively and in actual browser Linux. Never substitute worked output for execution. Distinguish real ZeroMQ mechanisms from authored application policies and durability guarantees. Every Run starts a fresh guest; Stop destroys it. Preserve static reading, accessible controls, Pages-relative paths, pinned assets, notices and separate reading marks. Do not claim external connectivity, durable messaging or production benchmarks from these bounded local experiments.

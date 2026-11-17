@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.preview/
+assets/*
+!assets/fonts/
+__pycache__/
+test-results/
+.venv/
+runtime/wheels/
