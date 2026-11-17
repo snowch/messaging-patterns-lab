@@ -2,7 +2,7 @@ import {lessons} from './lessons.mjs';
 const $=s=>document.querySelector(s);
 const read=k=>{try{return localStorage.getItem('mpl:'+k)}catch{return null}};
 const save=(k,v)=>{try{localStorage.setItem('mpl:'+k,v);return true}catch{return false}};
-function progress(){document.querySelectorAll('[data-progress]').forEach(el=>{el.textContent=read('done:'+el.dataset.progress)==='true'?'READ ✓':el.closest('.lesson-card')?'INVESTIGATE':''})}
+function progress(){document.querySelectorAll('[data-progress]').forEach(el=>{el.textContent=read('done:'+el.dataset.progress)==='true'?'Read ✓':el.dataset.kind==='reading'?'Reading':el.closest('.lesson-card')?'Lab':''})}
 progress();addEventListener('storage',progress);
 function themeLabel(){const dark=document.documentElement.dataset.theme==='dark';$('#theme').textContent=dark?'Light theme':'Dark theme';$('#theme').setAttribute('aria-label',dark?'Switch to light theme':'Switch to dark theme')}
 $('#theme').onclick=()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;save('theme',theme);themeLabel()};themeLabel();
@@ -66,7 +66,8 @@ if(main){
    }
    runRecord={lesson:lesson.slug,source,result:data.value.result,stdout:data.value.stdout,runtime:{...data.runtime,initialization_retries:retries}};
    $('#output').textContent=(data.value.stdout?data.value.stdout+'\n':'')+JSON.stringify(data.value.result,null,2);
-   $('#status').textContent='Completed · Linux / ZeroMQ';$('#export').disabled=false;stale();visualize(data.value.result);
+   const elapsed=data.runtime?.timing?.total_ms;
+   $('#status').textContent=Number.isFinite(elapsed)?`Completed in ${(elapsed/1000).toFixed(1)} s · Linux / ZeroMQ`:'Completed · Linux / ZeroMQ';$('#export').disabled=false;stale();visualize(data.value.result);
   };
   worker.postMessage({source});
  }

@@ -4,10 +4,10 @@ import {lessons} from '../src/lessons.mjs';import {chapters} from '../src/readin
 assert.equal(lessons.length,20);assert.equal(chapters.length,10);assert.equal(new Set(order.map(x=>x.id)).size,30);
 assert.deepEqual(new Set(order.map(x=>x.id)),new Set([...lessons.map(l=>l.slug),...chapters.map(c=>'advanced/'+c.slug)]));
 for(const l of lessons){assert.equal(l.costs.length,5);for(const f of ['goal','intro','concept','fixture','predict','observe','change','question','answer','limit'])assert.ok(l[f].length>25,l.slug+f)}
-const server=spawn('python3',['-m','http.server','5176','--bind','127.0.0.1','--directory','.preview'],{stdio:'ignore'});let browser;
+const server=spawn('python3',['-m','http.server','5286','--bind','127.0.0.1','--directory','.preview'],{stdio:'ignore'});let browser;
 try{
  await new Promise(r=>setTimeout(r,500));browser=await chromium.launch({executablePath:process.env.CI?undefined:'/usr/bin/chromium',args:['--no-sandbox']});
- const base='http://127.0.0.1:5176/messaging-patterns-lab/';const page=await browser.newPage({viewport:{width:1440,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const base='http://127.0.0.1:5286/messaging-patterns-lab/';const page=await browser.newPage({viewport:{width:1440,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(base+'lessons/request-and-reply.html');await page.evaluate(()=>document.fonts.ready);
  const menu=page.locator('.course-switcher'),toggle=menu.locator(':scope>summary');
  await toggle.focus();await page.keyboard.press('Enter');assert.equal(await menu.evaluate(e=>e.open),true);assert.equal(await menu.locator('.course-group li>a').count(),30);
@@ -32,5 +32,37 @@ try{
  for(const c of chapters){await staticPage.goto(base+'advanced/'+c.slug+'.html');assert.ok((await staticPage.locator('main').innerText()).length>3000,c.slug+' too light')}
  await staticPage.goto(base+'lessons/retry-with-stable-identity.html');await staticPage.locator('.operator-source>summary').click();assert.match(await staticPage.locator('.operator-source code').textContent(),/client\.poll/);assert.ok(await staticPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await staticPage.screenshot({path:'test-results/course-mobile.png',fullPage:true});
  await staticPage.locator('.course-switcher>summary').click();assert.ok(await staticPage.locator('.course-switcher').evaluate(e=>e.open));assert.ok(!requested.some(url=>/\/(engine|assets\/linux)\//.test(url)));
- assert.deepEqual(errors,[]);console.log('PASS 30-chapter catalog; keyboard/menu/theme; all 34 static phone pages; substantial readings, implementation inspection and no VM before Run.');
+  // The course entry must reach an actual lesson in the first phone/tablet screen.
+ await page.goto(base);
+ for(const width of [390,834]){
+  await page.setViewportSize({width,height:844});
+  const first=await page.locator('.chapter-link').first().boundingBox();
+  assert.ok(first.y+first.height<=844,'First lesson is reachable in the initial viewport at '+width);
+  assert.equal(await page.locator('.chapter-link').count(),30);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.screenshot({path:'test-results/home-'+width+'.png'});
+ }
+ // Prepared runtime bytes persist across chapters, while a changed manifest
+ // and denied storage both fall back to normal runtime preparation.
+ const cachePage=await browser.newPage();await cachePage.goto(base);
+ assert.equal(await cachePage.evaluate(async()=>{
+  const cache=await import('./runtime-cache.mjs');
+  return cache.writePreparedRuntime('interface-probe',new Uint8Array([0,97,115,109,1,0,0,0]),new Uint8Array([12,34,56]));
+ }),true);
+ await cachePage.goto(base+'lessons/'+lessons[0].slug+'.html');
+ assert.deepEqual(await cachePage.evaluate(async()=>{
+  const cache=await import('../runtime-cache.mjs'),saved=await cache.readPreparedRuntime('interface-probe');
+  await WebAssembly.compile(saved.engineBytes);
+  const changed=await cache.readPreparedRuntime('changed-manifest');
+  const descriptor=Object.getOwnPropertyDescriptor(globalThis,'indexedDB');
+  let denied,writeDenied;
+  try{
+   Object.defineProperty(globalThis,'indexedDB',{configurable:true,get(){throw new DOMException('Storage denied','SecurityError')}});
+   denied=await cache.readPreparedRuntime('interface-probe');
+   writeDenied=await cache.writePreparedRuntime('other',new Uint8Array(),new Uint8Array());
+  }finally{if(descriptor)Object.defineProperty(globalThis,'indexedDB',descriptor);else delete globalThis.indexedDB}
+  return {archive:[...saved.archive],changed,denied,writeDenied};
+ }),{archive:[12,34,56],changed:null,denied:null,writeDenied:false});
+ await cachePage.close();
+assert.deepEqual(errors,[]);console.log('PASS 30-chapter catalog; keyboard/menu/theme; all 34 static phone pages; substantial readings, implementation inspection and no VM before Run.');
 }finally{await browser?.close();server.kill()}

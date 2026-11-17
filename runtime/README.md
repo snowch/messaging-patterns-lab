@@ -11,3 +11,13 @@ python runtime/prepare.py
 Each Run creates a new guest and writable overlay. The worker verifies transferred bytes and executes the exact editor source through `runner.py`. Only actual result frames become output. A private user/network namespace enables guest loopback. Separate processes use `LAB_PYTHON` to invoke the bundled Python through its compatible loader. Stop terminates the worker/guest. A stalled boot may retry once before editor Python starts; editor code is never automatically retried.
 
 Initial transfers are approximately 71 MiB. The manifest is `assets/linux/manifest.json`; Python/library hashes are `assets/linux/python-manifest.json`. Chromium desktop is tested. Static reading needs no VM; phone execution and other browsers need separate validation. Guest data is temporary, and local success is not distributed durability or production performance evidence.
+
+## Run latency and caching
+
+Every Run still boots a new guest. Prepared assets stay in the page worker between runs. The browser can additionally keep verified, decompressed VM/Python asset bytes in IndexedDB across chapter navigation; compiled WebAssembly modules are not persisted. The cache holds one current manifest version, can occupy a few hundred MiB, contains no editor code, guest memory or results, and is disposable. Missing, denied or quota-limited storage falls back to normal verified downloads. Clearing this site's browser data removes it. Reading starts no VM and populates no runtime cache.
+
+The tar is indexed once per worker and only read-only file bytes are shared. Every Run creates new inodes, file positions, WebAssembly instance and writable guest overlay. Python starts with its explicit bundled import paths and `-S`; the runner avoids loading unrelated metadata/platform/process modules. Runtime identification reads the installed distribution metadata. Source programs are never automatically retried.
+
+Run exports include preparation, guest startup, execution and total milliseconds plus the asset source (`download`, `browser-cache` or `page-memory`). These include local emulation and do not measure native or distributed service throughput.
+
+Guest startup spans WebAssembly instantiation, Linux boot and runner initialization. Execution spans the running marker through result collection, including program imports, serialization and guest exit. It is not an isolated operator timer.
