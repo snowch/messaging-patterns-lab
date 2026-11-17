@@ -5,8 +5,7 @@ import {createHash} from 'node:crypto';
 import {parts,order,href} from '../src/catalog.mjs';
 import {lessons as rawLessons} from '../src/lessons.mjs';
 import {chapters} from '../src/readings.mjs';
-const lessons=[...rawLessons].sort((a,b)=>order.findIndex(x=>x.id===a.slug)-order.findIndex(x=>x.id===b.slug));
-// The browser and native tests share this order through the catalog, not array position.
+// The editor and native tests use the same lesson array; the catalog defines navigation.
 const samples=JSON.parse(execFileSync('python3',['tests/test_course.py','--json'],{encoding:'utf8'}));
 const sampleBy=Object.fromEntries(rawLessons.map((l,i)=>[l.slug,samples[i]]));
 execFileSync('python3',['runtime/prepare.py'],{stdio:'inherit'});
