@@ -28,7 +28,7 @@ try{
  const requestedSources=[];
  context.on('request',request=>{
   const url=new URL(request.url());
-  if(/\/(app\.js|worker\.js|python\/(messaging|peer|runner)\.py)$/.test(url.pathname))requestedSources.push(url);
+  if(/\/(app\.js|worker\.js|lessons\.mjs|warm-session\.mjs|wasi-poll\.mjs|runtime-cache\.mjs|python\/(messaging|peer|runner|session_runner)\.py)$/.test(url.pathname))requestedSources.push(url);
  });
  await context.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());
  const base=`http://127.0.0.1:${port}/messaging-patterns-lab/`;
