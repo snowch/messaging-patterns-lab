@@ -23,7 +23,7 @@ try{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await context.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());
  const base=`http://127.0.0.1:${port}/messaging-patterns-lab/`;
- await page.goto(base);await page.screenshot({path:artifact('overview-desktop.png'),fullPage:true});
+ const landing=await page.goto(base);assert.equal(landing.status(),200,'Prepared course missing from the configured preview path');await page.screenshot({path:artifact('overview-desktop.png'),fullPage:true});
  assert.equal(await page.locator('.lesson-card').count(),order.length);
  for(let i=0;i<lessons.length;i++){
   if(i%shardCount!==shardIndex)continue;
