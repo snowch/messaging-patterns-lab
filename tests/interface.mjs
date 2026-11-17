@@ -32,7 +32,17 @@ try{
  for(const c of chapters){await staticPage.goto(base+'advanced/'+c.slug+'.html');assert.ok((await staticPage.locator('main').innerText()).length>3000,c.slug+' too light')}
  await staticPage.goto(base+'lessons/retry-with-stable-identity.html');await staticPage.locator('.operator-source>summary').click();assert.match(await staticPage.locator('.operator-source code').textContent(),/client\.poll/);assert.ok(await staticPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await staticPage.screenshot({path:'test-results/course-mobile.png',fullPage:true});
  await staticPage.locator('.course-switcher>summary').click();assert.ok(await staticPage.locator('.course-switcher').evaluate(e=>e.open));assert.ok(!requested.some(url=>/\/(engine|assets\/linux)\//.test(url)));
-  // Prepared runtime bytes persist across chapters, while a changed manifest
+  // The course entry must reach an actual lesson in the first phone/tablet screen.
+ await page.goto(base);
+ for(const width of [390,834]){
+  await page.setViewportSize({width,height:844});
+  const first=await page.locator('.chapter-link').first().boundingBox();
+  assert.ok(first.y+first.height<=844,'First lesson is reachable in the initial viewport at '+width);
+  assert.equal(await page.locator('.chapter-link').count(),30);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.screenshot({path:'test-results/home-'+width+'.png'});
+ }
+ // Prepared runtime bytes persist across chapters, while a changed manifest
  // and denied storage both fall back to normal runtime preparation.
  const cachePage=await browser.newPage();await cachePage.goto(base);
  assert.equal(await cachePage.evaluate(async()=>{
