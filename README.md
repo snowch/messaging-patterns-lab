@@ -21,7 +21,7 @@ npm run dev
 # http://localhost:5173/messaging-patterns-lab/
 ```
 
-The pinned container2wasm/Bochs VM and Python/PyZMQ bundle are prepared by `runtime/prepare.py`. First use transfers about 71 MiB. Docker is a build-time dependency; the published site is static. Fast reruns keep Linux ready and start a clean isolated Python process, private files and sockets on every Run. Fresh Linux mode starts a new guest each time. Stop and Reset Linux destroy the guest. Stop destroys it. Guest state, sockets and files are temporary; drafts and reading marks stay in this browser under `mpl:` keys.
+The pinned container2wasm/Bochs VM and Python/PyZMQ bundle are prepared by `runtime/prepare.py`. First use transfers about 71 MiB. Docker is a build-time dependency; the published site is static. Fast reruns keep Linux ready and start a clean isolated Python process, private files and sockets on every Run. Fresh Linux mode starts a new guest each time. Stop and Reset Linux destroy the guest. Guest state, sockets and files are temporary; drafts and reading marks stay in this browser under `mpl:` keys.
 
 ```sh
 npx playwright install --with-deps chromium
