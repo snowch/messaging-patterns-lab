@@ -35,6 +35,26 @@ The old home repeated a large conceptual poster, technical version details and a
 
 At 390px and 834px widths the first chapter is visible in the initial viewport, with no horizontal overflow. Chapter numbers, titles, descriptions, lab/reading labels and explicit read marks remain available; the course still has the same 30 chapters. Keyboard focus, dark mode, static reading and all lesson layouts are checked through the existing interface pass.
 
+## Sentence and interface audit
+
+The pass covered every heading, prompt, setup, worked observation, variation, scope statement, hint, transfer answer and cost row in the [20 investigations](../src/lessons.mjs). Basic Python is the starting prerequisite. The first lesson now explains the sockets, the request and reply, and the meaning of ACK before asking the reader to recognize it. Optional source inspection defines the ZeroMQ context and explains which information travels through the readiness pipe.
+
+| Investigations | What changed |
+| --- | --- |
+| Request and reply, frames, REQ state | Separate what the page starts from what the learner does. Identify the reply frames, the byte and frame counts, and what happens when REQ receives its first reply. |
+| Pipeline, publication filter, late subscriber, sequence gaps | Identify which jobs arrived, which topic prefixes match, and which publication values and sequence numbers were observed. Explain what the sender or publisher prepared before each comparison. |
+| Nonblocking receive, socket queues, routing, unknown routes | Define the relevant socket flags and limits. Distinguish a zero-byte message from an empty receive, messages admitted from bytes held, and the routing key from an application frame. |
+| Reply correlation, proxy, retry, worker credit | Separate arrival order from matching, forwarding from handling, and repeated attempts from repeated effects. Name the assignment that waits when the broker has no credit. |
+| Latest-value replay, monitor, connection and close, CURVE, capstone | Name the evidence for a cached value, a completed application reply, queue admission, and server-key verification. Identify the capstone's repeated charge and state what survives the example. |
+
+The [ten design readings](../src/readings.mjs) received the same pass on openings, explanations, tables, hints and answers. The readings define admission, commits and replies by what their evidence shows. They explain socket ownership and transport, snapshot positions and publisher sessions, deadlines and heartbeats, queue capacity, dispatch credits, message formats, identity checks, restart positions, and the evidence needed before switching to a recovered view. Each illustrative table has a question tied to its rows. Case-specific limits stay where the claims are made. The [concept diagrams](../scripts/diagrams.mjs) name the sender and receiver, confirm which channel reports readiness and which carries messages, and separate worker replies from transport protection.
+
+The [shared pages](../scripts/build.mjs), [worked explanations and exercise controls](../scripts/exercise.mjs), and [editor and runtime feedback](../src/app.js) were checked in reading, first-run, edited-run, error, cancellation and recovery order. The setup and short original result stay visible without running code. The original console data, helper, and cost details can be opened separately. Stop appears only during a run. Downloads include the code and the last good run. Restore keeps a recoverable copy of the displaced edit across reloads, and a later error leaves the last successful output and its source available. Earlier ZeroMQ drafts still open in the editor and pre-ZeroMQ drafts remain available to download.
+
+The [native checks](../tests/test_course.py) run all 20 original sources and all 21 exact edits from the learner instructions, including each setting in the prefix, sequence and queue comparisons. The [browser checks](../tests/browser.mjs) run those same sources in fresh Linux guests and compare the observed ZeroMQ results with the native checks. The [interface checks](../tests/interface.mjs) cover all 34 pages at phone width, theme and keyboard controls, and the static reading path with JavaScript off. These checks verify the instructions and interface. They do not measure learning outcomes.
+
+The page gives its worker and Python helpers the same build ID. The code download uses that ID too. A browser that recently ran an older lesson can load these exact edits while keeping its previously downloaded large Linux files.
+
 ## Fast reruns with warm Linux — 17 November 2026
 
 Replace repeated VM/Python startup with a feature-detected warm session, retaining explicit Fresh Linux and Reset Linux controls. JSPI suspends the guest between commands. A single-threaded controller preloads whitelisted helpers, then each program runs in a new PID-1 process with new user/network/mount/PID/IPC/UTS namespaces and a private scratch root. Installed directories are read-only. Fast mode intentionally has no /proc because nested proc mounts are locked; Fresh Linux retains system inspection.

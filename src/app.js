@@ -1,4 +1,6 @@
 import {lessons} from './lessons.mjs';
+const appUrl=new URL(import.meta.url);
+const lessonSource=path=>new URL(path+appUrl.search,appUrl);
 const $=s=>document.querySelector(s);
 const read=k=>{try{return localStorage.getItem('mpl:'+k)}catch{return null}};
 const save=(k,v)=>{try{localStorage.setItem('mpl:'+k,v);return true}catch{return false}};
@@ -34,30 +36,91 @@ if(main){
   if(busy)return;
   discardWorker();finish('Linux reset. The next Run starts Linux again.');
  };
- const cached=read('draft:'+lesson.slug);
- if(cached!==null&&read('draft-runtime:'+lesson.slug)!=='pyzmq-v1'){
-  save('legacy-draft:'+lesson.slug,cached);save('draft:'+lesson.slug,lesson.code);
- }else if(cached!==null)editor.value=cached;
- save('draft-runtime:'+lesson.slug,'pyzmq-v1');
- const previous=read('legacy-draft:'+lesson.slug);
- if(previous!==null){const button=document.createElement('button');button.textContent='Download previous draft';button.onclick=()=>download('# Saved before the ZeroMQ migration; source only.\n'+previous,lesson.slug+'-previous.py','text/x-python');$('#draft-note').append(' Your previous draft has been preserved. ',button)}
+
+ const draftKey='draft-state:'+lesson.slug;
+ const oldDraft=read('draft:'+lesson.slug);
+ const oldIsPython=read('draft-runtime:'+lesson.slug)==='pyzmq-v1';
+ const previous=read('legacy-draft:'+lesson.slug)??(oldIsPython?null:oldDraft);
+ let draft={code:(oldIsPython?oldDraft:null)??lesson.code,recovery:null};
+ try{
+  const saved=JSON.parse(read(draftKey));
+  if(typeof saved?.code==='string')draft={code:saved.code,recovery:typeof saved.recovery==='string'?saved.recovery:null};
+ }catch{}
+ editor.value=draft.code;
+ if(previous!==null){
+  const button=document.createElement('button');
+  button.type='button';button.textContent='Download previous draft';
+  button.onclick=()=>download('# Saved before the ZeroMQ migration; source only.\n'+previous,lesson.slug+'-previous.py','text/x-python');
+  $('#download').parentElement.append(button);
+ }
  $('#done').checked=read('done:'+lesson.slug)==='true';
  $('#done').onchange=()=>{const ok=save('done:'+lesson.slug,String($('#done').checked));$('#save-status').textContent=ok?'Reading mark saved in this browser.':'Could not save. Reading mark lasts for this visit.';progress()};
- function stale(){if(runRecord)$('#execution-note').textContent=editor.value!==runRecord.source?'Code changed · output is from the previous run.':'Output matches the last executed source.'}
- editor.oninput=()=>{if(!save('draft:'+lesson.slug,editor.value))$('#draft-note').textContent='Storage unavailable. Download your code to keep it.';stale()};
- $('#restore').onclick=()=>{editor.value=lesson.code;editor.dispatchEvent(new Event('input'))};
+ function describeResult(){
+  if(!runRecord)return;
+  const source=runRecord.source===lesson.code?'the original code':'an edited version';
+  const changed=editor.value!==runRecord.source?' The editor has changed since this run.':'';
+  $('#execution-note').textContent='Last successful run used '+source+'.'+changed;
+ }
+ function updateDraftControls(){
+  $('#restore').hidden=editor.value===lesson.code;
+  $('#recover').hidden=draft.recovery===null||draft.recovery===editor.value;
+ }
+ editor.oninput=()=>{
+  draft={...draft,code:editor.value};
+  $('#draft-status').textContent=save(draftKey,JSON.stringify(draft))?'':'Browser storage is unavailable. Download your code to keep a copy.';
+  updateDraftControls();
+  describeResult();
+ };
+ function switchDraft(code,message){
+  const next={code,recovery:editor.value===lesson.code?null:editor.value};
+  if(!save(draftKey,JSON.stringify(next))){
+   $('#draft-status').textContent='Browser storage is unavailable. Your current edit is still in the editor.';
+   return;
+  }
+  draft=next;
+  editor.value=code;
+  updateDraftControls();
+  describeResult();
+  $('#draft-status').textContent=message;
+  editor.focus();
+ }
+ $('#restore').onclick=()=>switchDraft(lesson.code,'Original code restored. Use Recover saved edit to get your edit back.');
+ $('#recover').onclick=()=>switchDraft(draft.recovery,'Saved edit recovered.');
+ updateDraftControls();
+ const runButton=$('#run'),stopButton=$('#stop');
  function discardWorker(){runGeneration++;attemptSerial++;worker?.terminate();worker=null}
- function state(active,text){busy=active;modeControl.disabled=active;resetRuntime.disabled=active;resetRuntime.hidden=!worker||modeControl.value==='fresh';$('#run').disabled=active;$('#stop').disabled=!active;$('#status').textContent=text}
- function finish(message='Ready for another run'){clearTimeout(timer);$('#runtime-progress')?.setAttribute('hidden','');state(false,message)}
- function stop(message){discardWorker();finish();$('#status').textContent=message;$('#execution-note').textContent='Execution interrupted. Existing output belongs to the last completed run.'}
+ function state(active,text){
+  modeControl.disabled=active;resetRuntime.disabled=active;resetRuntime.hidden=!worker||modeControl.value==='fresh';
+  busy=active;
+  const moveFocus=document.activeElement===(active?runButton:stopButton);
+  runButton.disabled=active;
+  stopButton.hidden=stopButton.disabled=!active;
+  $('#status').textContent=text;
+  if(moveFocus)(active?stopButton:runButton).focus();
+ }
+ function finish(message){clearTimeout(timer);$('#runtime-progress').hidden=true;state(false,message)}
+ function stop(message){discardWorker();finish(message)}
+ function showError(message,summary){
+  const details=String(message).trim();
+  summary??=details.split('\n').at(-1);
+  $('#error-summary').textContent=summary||'The experiment stopped before it returned a result.';
+  $('#error-output').textContent=details;
+  $('#error-more').hidden=details===summary;
+  $('#error-more').open=false;
+  $('#run-error').hidden=false;
+ }
  $('#stop').onclick=()=>stop('Stopped · next run starts a fresh runtime');
  function startAttempt(source,generation,retries){
   const attempt=++attemptSerial;let begun=false;
   clearTimeout(timer);
   timer=setTimeout(()=>stop('Loading timed out. Check your connection and run again.'),300000);
-  worker ||= new Worker(new URL('./worker.js',import.meta.url),{type:'module'});
+  worker ||= new Worker(lessonSource('./worker.js'),{type:'module'});
   const current=()=>busy&&generation===runGeneration&&attempt===attemptSerial;
-  worker.onerror=e=>{if(!current())return;stop('Runtime failed. Run again to restart.');$('#output').textContent=e.message};
+  worker.onerror=e=>{
+   if(!current())return;
+   stop('The Linux environment stopped. Click Run in Linux to try again.');
+   showError(e.message,e.message);
+  };
   worker.onmessage=({data})=>{
    if(!current())return;
    if(data.type==='loading'){
@@ -77,31 +140,36 @@ if(main){
     timer=setTimeout(()=>stop('Stopped after 180 seconds. Shorten the experiment and try again.'),180000);
     $('#status').textContent='Running your Python…';return;
    }
-   finish();
    if(data.type==='error'){
-    if(data.origin==='runtime'){discardWorker();finish()}
-    $('#status').textContent=data.origin==='runtime'?'Runtime reported an error · retry initialization':'Python reported an error · edit and retry';
-    $('#output').textContent=data.message;$('#visual').replaceChildren();
-    $('#execution-note').textContent='This attempt failed; no successful result was produced.';
-    runRecord=null;$('#export').disabled=true;return;
+    if(data.origin==='runtime')discardWorker();
+    finish(data.origin==='runtime'?'Runtime reported an error. Click Run in Linux to try again.':'Python reported an error. Check the message below, then edit and run again.');
+    showError(data.message,data.origin==='runtime'?data.summary:undefined);
+    return;
    }
    const elapsed=Math.round(performance.now()-runStarted);
-   if(data.runtime?.warm_fallback){modeControl.value='fresh';describeMode();resetRuntime.hidden=true}
+   if(data.runtime?.warm_fallback){modeControl.value='fresh';describeMode()}
    runRecord={lesson:lesson.slug,source,result:data.value.result,stdout:data.value.stdout,runtime:{...data.runtime,initialization_retries:retries,elapsed_ms:elapsed}};
    $('#output').textContent=(data.value.stdout?data.value.stdout+'\n':'')+JSON.stringify(data.value.result,null,2);
-   $('#status').textContent=Number.isFinite(elapsed)?`Completed in ${(elapsed/1000).toFixed(1)} s · Linux / ZeroMQ`:'Completed · Linux / ZeroMQ';$('#export').disabled=false;stale();visualize(data.value.result);
+   $('#completed-run').hidden=false;
+   finish(Number.isFinite(elapsed)?`Completed in ${(elapsed/1000).toFixed(1)} seconds`:'Completed');
+   $('#export').disabled=false;
+   describeResult();
+   visualize(data.value.result);
   };
   worker.postMessage({source,mode:modeControl.value,preload});
  }
  $('#run').onclick=()=>{
-  if(busy)return;runStarted=performance.now();state(true,'Preparing Python…');
+  if(busy)return;
+  runStarted=performance.now();
+  $('#run-error').hidden=true;
+  state(true,'Preparing Linux…');
   startAttempt(editor.value,++runGeneration,0);
  };
  editor.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();$('#run').click()}});
  function download(contents,name,type){const url=URL.createObjectURL(new Blob([contents],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
  $('#download').onclick=async()=>{try{
  const names=['messaging.py','peer.py'];
- const modules=Object.fromEntries(await Promise.all(names.map(async name=>{const r=await fetch(new URL('./python/'+name,import.meta.url));if(!r.ok)throw Error('Helper download failed');return [name,await r.text()]})));
+ const modules=Object.fromEntries(await Promise.all(names.map(async name=>{const r=await fetch(lessonSource('./python/'+name));if(!r.ok)throw Error('Helper download failed');return [name,await r.text()]})));
  const setup='# Install: python -m pip install pyzmq==27.3.0\nimport tempfile, pathlib, sys, json\n_lab = tempfile.TemporaryDirectory(prefix="messaging-lab-")\n_modules = '+JSON.stringify(modules)+'\nfor _name, _text in _modules.items():\n    pathlib.Path(_lab.name, _name).write_text(_text)\nsys.path.insert(0, _lab.name)\n\n# Your experiment\n';
  download(setup+editor.value+'\nprint(json.dumps(result, indent=2))\n',lesson.slug+'.py','text/x-python');
  }catch(e){$('#status').textContent=e.message}};

@@ -6,6 +6,7 @@ import {readPreparedRuntime,writePreparedRuntime} from './runtime-cache.mjs';
 let ready,busy=false,session,fastUnavailable=false,fastReason;
 const decoder=new TextDecoder(),encoder=new TextEncoder();
 const phase=(message,extra={})=>postMessage({type:'loading',message,...extra});
+const workerUrl=new URL(import.meta.url);
 
 async function inflate(bytes){
  if(typeof DecompressionStream==='undefined')return gunzipSync(bytes);
@@ -27,39 +28,39 @@ async function prepareAssets(manifest){
  const cached=await readPreparedRuntime(key);
  if(cached){
   try{
-   phase('Preparing the verified runtime saved in this browser…');
+   phase('Preparing Linux from saved files…');
    return {module:await WebAssembly.compile(cached.engineBytes),entries:indexArchive(cached.archive),assetSource:'browser-cache'};
-  }catch{phase('Preparing runtime assets again…')}
+  }catch{phase('Loading Linux files again…')}
  }
  let downloaded=0,lastReport=0;
  const total=manifest.assets.reduce((n,item)=>n+item.bytes,0);
- const report=n=>{downloaded+=n;if(performance.now()-lastReport>250||downloaded===total){lastReport=performance.now();phase(`Loading Linux + ZeroMQ · ${Math.floor(downloaded/1048576)} / ${Math.ceil(total/1048576)} MiB`,{downloaded,total})}};
+ const report=n=>{downloaded+=n;if(performance.now()-lastReport>250||downloaded===total){lastReport=performance.now();phase(`Loading Linux and Python. ${Math.floor(downloaded/1048576)} / ${Math.ceil(total/1048576)} MiB`,{downloaded,total})}};
  const bytes=await Promise.all(manifest.assets.map(item=>asset(item,report)));
- phase('Compiling the Linux VM…');
+ phase('Preparing Linux…');
  const pieces=await Promise.all(bytes.slice(0,3).map(inflate));
  const engineBytes=new Uint8Array(pieces.reduce((n,b)=>n+b.length,0));let offset=0;
  for(const piece of pieces){engineBytes.set(piece,offset);offset+=piece.length}
  const module=await WebAssembly.compile(engineBytes);
- phase('Preparing the native Python filesystem…');
+ phase('Preparing Python…');
  const archive=await inflate(bytes[3]);
  await writePreparedRuntime(key,engineBytes,archive);
  return {module,archive,assetSource:'download'};
 }
 async function setup(){
- phase('Preparing Linux and ZeroMQ…');
+ phase('Preparing the experiment…');
  const response=await fetch(new URL('./assets/linux/manifest.json',import.meta.url));
  if(!response.ok)throw Error('Runtime manifest unavailable. Reload and retry.');
  const prepared=await prepareAssets(await response.json());
  const names=['messaging.py','peer.py','runner.py','session_runner.py'];
  const helpers=await Promise.all(names.map(async name=>{
-  const r=await fetch(new URL('./python/'+name,import.meta.url));if(!r.ok)throw Error('Could not load '+name);
+  const r=await fetch(new URL('./python/'+name+workerUrl.search,workerUrl));if(!r.ok)throw Error('Could not load '+name);
   return [name,new Uint8Array(await r.arrayBuffer())];
  }));
  return {module:prepared.module,entries:prepared.entries||indexArchive(prepared.archive),helpers,assetSource:prepared.assetSource};
 }
 
-// Index once and share read-only bytes. Every Run gets fresh inodes, file
-// positions, a new Linux VM and its own writable overlay.
+// Index once and share read-only bytes. Each guest gets fresh inodes and file
+// positions; warm executions add their own private writable root and namespaces.
 function indexArchive(archive){
  const entries=[];let pax={};
  for(let p=0;p+512<=archive.length;){
@@ -118,7 +119,7 @@ self.onmessage=async({data})=>{
    await session.close();session=null;
   }
   booted=performance.now();
-  phase('Starting a fresh Linux guest…',{stage:'boot'});let terminal='',runningSent=false;
+  phase('Starting Linux…',{stage:'boot'});let terminal='',runningSent=false;
   const stdout=new ConsoleStdout(bytes=>{
    if(!bytes.length)return;terminal+=decoder.decode(bytes,{stream:true});
    if(terminal.includes('MPL_PHASE running')&&!runningSent){runningSent=true;running=performance.now();postMessage({type:'running'})}
@@ -135,10 +136,10 @@ self.onmessage=async({data})=>{
   const instance=await WebAssembly.instantiate(module,{wasi_snapshot_preview1:wasi.wasiImport});
   wasi.start(instance);
   const frames=terminal.split(/\r?\n/).filter(line=>line.startsWith('MPL_RESULT '));
-  if(!frames.length)throw Error('The Linux guest exited without a result. Stop and retry.\n'+terminal.slice(-5000));
+  if(!frames.length)throw Error('Linux stopped before it returned a result.\n'+terminal.slice(-5000));
   const result=JSON.parse(frames.at(-1).slice('MPL_RESULT '.length));
   if(result.type==='result'){result.runtime.mode='fresh';result.runtime.procfs=true;if(fastReason)result.runtime.warm_fallback=fastReason;result.runtime.timing={preparation_ms:Math.round(booted-started),guest_startup_ms:Math.round(running-booted),execution_ms:Math.round(performance.now()-running),total_ms:Math.round(performance.now()-started),asset_source:reused?'page-memory':assetSource};}
   postMessage(result);
- }catch(error){postMessage({type:'error',origin:'runtime',message:String(error.stack||error)})}
+ }catch(error){postMessage({type:'error',origin:'runtime',summary:String(error.message||error).split('\n')[0],message:String(error.stack||error)})}
  finally{busy=false}
 };

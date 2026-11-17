@@ -41,31 +41,31 @@ button:hover:enabled{border-color:var(--green);background:var(--soft)}
 .goal b{font-size:13px;letter-spacing:.01em;text-transform:none;color:var(--muted)}
 .goal p{font-size:17px;margin:6px 0 0}
 .lesson .prediction{border:0;border-left:3px solid var(--green);padding:18px 22px;background:var(--soft);border-radius:0 8px 8px 0}
-.prediction p{font:18px/1.7 "IBM Plex Sans",system-ui,sans-serif;margin:10px 0}
-.prediction>span:last-child{font-size:13px}
+.lesson .prediction h2{font-size:20px;margin:0 0 6px}
+.prediction p{font:18px/1.7 "IBM Plex Sans",system-ui,sans-serif;margin:0}
 .change{border-left:3px solid var(--green);border-radius:0 8px 8px 0;padding:18px 22px}
-.change>b{font-size:15px;color:var(--green)}
-.runtime-contract{background:var(--surface);padding:20px 22px;border-radius:8px;gap:24px}
-.runtime-contract h3{font:600 21px/1.4 "IBM Plex Sans",system-ui,sans-serif}
-.runtime-contract p{font-size:13px;line-height:1.65}
-.runtime-contract b,.runtime-contract a{font-size:13px}
-.runtime-contract .eyebrow{font-size:12px}
+.change h3{margin:0;color:var(--green)}
 .workbench{--ink:#e1eee6;--muted:#b5cac1;--line:#49645a;--surface:#213d34;--tint:#19352c;--soft:#203e33;--green:#a3ddc2;--orange:#a3ddc2;background:var(--code);color:var(--ink);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:22px 0 28px}
 .workbench .code-cell{background:transparent;color:inherit;margin:0;border-radius:0}
 .cell-head{padding:15px 16px 8px;gap:12px;flex-wrap:wrap;border:0;font:600 16px/1.5 "IBM Plex Mono",monospace;letter-spacing:0}
 .cell-head button{background:var(--surface);border:1px solid var(--line);font:600 13px "IBM Plex Sans",sans-serif;min-height:36px;padding:6px 12px}
-.code-cell textarea{width:calc(100% - 32px);margin:12px 16px;min-height:230px;height:360px;border:1px solid var(--line);border-radius:6px;background:#10221d;padding:14px 12px;font:15px/1.6 "IBM Plex Mono",monospace;caret-color:#a3ddc2;color:var(--codeink)}
+.code-cell textarea{width:calc(100% - 32px);margin:12px 16px;min-height:110px;height:144px;border:1px solid var(--line);border-radius:6px;background:#10221d;padding:14px 12px;font:15px/1.6 "IBM Plex Mono",monospace;caret-color:#a3ddc2;color:var(--codeink)}
 .cell-tools{border:0;padding:0 16px 14px;gap:8px}
 .cell-tools .primary{background:#a3ddc2;color:#122824;border-color:#a3ddc2;border-radius:6px;font-weight:600;font-size:15px;min-height:44px;padding:9px 14px}
 .cell-tools .primary:hover:enabled{background:#b8ead4;border-color:#b8ead4}
 .cell-tools>button:not(.primary){background:var(--surface);border-color:var(--line);color:var(--codeink);font-size:13px}
 #status{color:var(--muted);font-size:13px}
-.workbench #draft-note,.workbench #execution-note{max-width:none;padding:0 16px;margin:0 0 14px;font-size:13px;color:var(--muted)}
-.workbench #execution-note:empty{display:none}
+.workbench #draft-note,.workbench #draft-status,.workbench #execution-note{max-width:none;padding:0 16px;margin:0 0 14px;font-size:13px;color:var(--muted)}
+.workbench #status:empty,.workbench #draft-status:empty,.workbench #execution-note:empty{display:none}
+.workbench .run-error{margin:0 16px 16px;padding:10px 12px;border:1px solid #d8a36d;border-radius:6px;color:#ffdda9}
+.workbench .run-error p{margin:0}
+.workbench .run-error pre{margin-bottom:3px}
 .workbench #visual:not(:empty){padding:0 16px 18px}
 .workbench .output-head{padding:16px 16px 10px;margin:0;border-top:1px solid var(--line)}
-.workbench .output-head h3{font-size:17px}
-.workbench .output-head button{font-size:13px;background:var(--surface);color:var(--codeink)}
+.workbench .output-head h3{font-size:17px;margin:0}
+.workbench .downloads{margin:0 16px 14px}
+.workbench .downloads div{display:flex;flex-wrap:wrap;gap:8px}
+.workbench .downloads button{font-size:13px;background:var(--surface);color:var(--codeink)}
 .workbench #output{margin:0 16px 20px;padding:14px;background:#10221d;color:var(--codeink);border-color:var(--line);border-radius:6px;font:14px/1.65 "IBM Plex Mono",monospace}
 .workbench .trace-head h3{font:600 20px/1.5 "IBM Plex Sans",sans-serif;color:var(--ink)}
 .workbench .trace-head button{background:var(--surface);color:var(--ink)}
@@ -179,8 +179,6 @@ footer p,footer span{font-size:12px}
  .section-heading>p{margin-top:18px;font-size:15px}
  .closing{padding:24px}
  .about{margin:40px auto;padding:0 20px}
- .runtime-contract{padding:18px;gap:14px}
- .runtime-contract>div+div{border-top:1px solid var(--line);padding-top:14px}
  .code-cell textarea{font-size:14px}
  .pagination{grid-template-columns:minmax(0,1fr);gap:12px}
  .pagination>a{min-height:100px;padding:18px 20px}
