@@ -14,7 +14,26 @@ if(courseMenu){
 }
 const main=$('[data-lesson]');
 if(main){
- const lesson=lessons[Number(main.dataset.lesson)], editor=$('#code');let worker,timer,runRecord,busy=false,runGeneration=0,attemptSerial=0;
+ const lesson=lessons[Number(main.dataset.lesson)], editor=$('#code');let worker,timer,runRecord,busy=false,runGeneration=0,attemptSerial=0,runStarted=0;
+ const modeControl=$('#run-mode'),resetRuntime=$('#reset-runtime');
+ const fastSupported=typeof globalThis.WebAssembly?.Suspending==='function'&&typeof globalThis.WebAssembly?.promising==='function';
+ const savedMode=read('run-mode');
+ modeControl.value=fastSupported&&savedMode!=='fresh'?'warm':'fresh';
+ modeControl.querySelector('[value="warm"]').disabled=!fastSupported;
+ const preload=[...new Set([...lesson.code.matchAll(/^(?:from|import) (course|patterns|kafka_lab|live_kafka|recovery_drill)\b/gm)].map(match=>match[1]))];
+ function describeMode(){
+  $('#run-mode-note').textContent=modeControl.value==='warm'?'Fresh Python, files and sockets on each run. Linux stays ready; Reset Linux restarts it.':fastSupported?'A new Linux guest on every run. Use this for system inspection or a fully fresh environment.':'Fast reruns are unavailable in this browser. Each Run starts fresh Linux.';
+ }
+ describeMode();
+ modeControl.onchange=()=>{
+  if(busy)return;
+  save('run-mode',modeControl.value);discardWorker();describeMode();
+  finish('Run mode changed. Run when ready.');
+ };
+ resetRuntime.onclick=()=>{
+  if(busy)return;
+  discardWorker();finish('Linux reset. The next Run starts Linux again.');
+ };
  const cached=read('draft:'+lesson.slug);
  if(cached!==null&&read('draft-runtime:'+lesson.slug)!=='pyzmq-v1'){
   save('legacy-draft:'+lesson.slug,cached);save('draft:'+lesson.slug,lesson.code);
@@ -27,9 +46,10 @@ if(main){
  function stale(){if(runRecord)$('#execution-note').textContent=editor.value!==runRecord.source?'Code changed · output is from the previous run.':'Output matches the last executed source.'}
  editor.oninput=()=>{if(!save('draft:'+lesson.slug,editor.value))$('#draft-note').textContent='Storage unavailable. Download your code to keep it.';stale()};
  $('#restore').onclick=()=>{editor.value=lesson.code;editor.dispatchEvent(new Event('input'))};
- function state(active,text){busy=active;$('#run').disabled=active;$('#stop').disabled=!active;$('#status').textContent=text}
- function finish(){clearTimeout(timer);$('#runtime-progress')?.setAttribute('hidden','');state(false,'Ready for another run')}
- function stop(message){runGeneration++;attemptSerial++;worker?.terminate();worker=null;finish();$('#status').textContent=message;$('#execution-note').textContent='Execution interrupted. Existing output belongs to the last completed run.'}
+ function discardWorker(){runGeneration++;attemptSerial++;worker?.terminate();worker=null}
+ function state(active,text){busy=active;modeControl.disabled=active;resetRuntime.disabled=active;resetRuntime.hidden=!worker||modeControl.value==='fresh';$('#run').disabled=active;$('#stop').disabled=!active;$('#status').textContent=text}
+ function finish(message='Ready for another run'){clearTimeout(timer);$('#runtime-progress')?.setAttribute('hidden','');state(false,message)}
+ function stop(message){discardWorker();finish();$('#status').textContent=message;$('#execution-note').textContent='Execution interrupted. Existing output belongs to the last completed run.'}
  $('#stop').onclick=()=>stop('Stopped · next run starts a fresh runtime');
  function startAttempt(source,generation,retries){
   const attempt=++attemptSerial;let begun=false;
@@ -59,20 +79,22 @@ if(main){
    }
    finish();
    if(data.type==='error'){
+    if(data.origin==='runtime'){discardWorker();finish()}
     $('#status').textContent=data.origin==='runtime'?'Runtime reported an error · retry initialization':'Python reported an error · edit and retry';
     $('#output').textContent=data.message;$('#visual').replaceChildren();
     $('#execution-note').textContent='This attempt failed; no successful result was produced.';
     runRecord=null;$('#export').disabled=true;return;
    }
-   runRecord={lesson:lesson.slug,source,result:data.value.result,stdout:data.value.stdout,runtime:{...data.runtime,initialization_retries:retries}};
+   const elapsed=Math.round(performance.now()-runStarted);
+   if(data.runtime?.warm_fallback){modeControl.value='fresh';describeMode();resetRuntime.hidden=true}
+   runRecord={lesson:lesson.slug,source,result:data.value.result,stdout:data.value.stdout,runtime:{...data.runtime,initialization_retries:retries,elapsed_ms:elapsed}};
    $('#output').textContent=(data.value.stdout?data.value.stdout+'\n':'')+JSON.stringify(data.value.result,null,2);
-   const elapsed=data.runtime?.timing?.total_ms;
    $('#status').textContent=Number.isFinite(elapsed)?`Completed in ${(elapsed/1000).toFixed(1)} s · Linux / ZeroMQ`:'Completed · Linux / ZeroMQ';$('#export').disabled=false;stale();visualize(data.value.result);
   };
-  worker.postMessage({source});
+  worker.postMessage({source,mode:modeControl.value,preload});
  }
  $('#run').onclick=()=>{
-  if(busy)return;state(true,'Preparing Linux + ZeroMQ…');
+  if(busy)return;runStarted=performance.now();state(true,'Preparing Python…');
   startAttempt(editor.value,++runGeneration,0);
  };
  editor.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();$('#run').click()}});
