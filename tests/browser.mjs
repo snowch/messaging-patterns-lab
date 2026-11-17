@@ -5,7 +5,11 @@ import assert from 'node:assert/strict';
 import {lessons} from '../src/lessons.mjs';
 import {chapters} from '../src/readings.mjs';
 import {order} from '../src/catalog.mjs';
-const samples=JSON.parse(execFileSync('python3',['tests/test_course.py','--json'],{encoding:'utf8'}));
+const {samples,variants}=JSON.parse(execFileSync('python3',['tests/test_course.py','--browser-samples'],{encoding:'utf8'}));
+async function openDownloads(page){
+ const downloads=page.locator('.downloads');
+ if(await downloads.getAttribute('open')===null)await downloads.locator('summary').click();
+}
 const shardCount=Number(process.env.ESL_BROWSER_SHARDS||1),shardIndex=Number(process.env.ESL_BROWSER_SHARD||0);
 assert.ok(Number.isInteger(shardCount)&&shardCount>=1&&shardCount<=lessons.length);
 assert.ok(Number.isInteger(shardIndex)&&shardIndex>=0&&shardIndex<shardCount);
@@ -61,6 +65,7 @@ try{
   assert.match(status,/Completed/);
   assert.deepEqual(JSON.parse(await page.locator('#output').textContent()),samples[i],lessons[i].slug);
   if(i===shardIndex+shardCount){
+   await openDownloads(page);
    const cachedDownload=page.waitForEvent('download');await page.locator('#export').click();
    await (await cachedDownload).saveAs(artifact('cached-runtime.json'));
    const cached=JSON.parse(await fs.readFile(artifact('cached-runtime.json'),'utf8'));
@@ -70,6 +75,7 @@ try{
   }
   if(i===0){
    assert.equal(workerRequests,3,'A stalled guest gets exactly one initialization retry');
+   await openDownloads(page);
    const retryExport=page.waitForEvent('download');await page.locator('#export').click();
    await (await retryExport).saveAs(artifact('initialization-retry.json'));
    const retried=JSON.parse(await fs.readFile(artifact('initialization-retry.json'),'utf8'));
@@ -79,26 +85,71 @@ try{
    console.log('PASS startup watchdog: Stop cancels; boot retries are bounded; fresh actual Linux execution matches native.');
   }
   console.log('PASS Linux lesson:',lessons[i].slug);
+  const {code,slug}=lessons[i];
+  const edits=await page.locator('.change code').allTextContents();
+  const requested=edits.filter(text=>text.startsWith('result = '));
+  assert.deepEqual(requested,(variants[slug]??[]).map(value=>value.edit),slug);
+  for(const variant of variants[slug]??[]){
+   await page.locator('#code').fill(code.slice(0,code.lastIndexOf('\n')+1)+variant.edit);
+   await page.locator('#run').click();
+   await page.waitForFunction(()=>!document.querySelector('#run').disabled);
+   assert.match(await page.locator('#status').textContent(),/Completed/,slug);
+   assert.deepEqual(JSON.parse(await page.locator('#output').textContent()),variant.result,slug);
+   console.log('PASS Linux follow-up edit:',slug,variant.edit);
+  }
+  if(requested.length)await page.locator('#restore').click();
   await page.locator('#done').check();
  }
  if(shardIndex===0){
  await page.goto(base+'lessons/'+lessons[0].slug+'.html');
+ const edited=lessons[0].code.replace("round_trip()","round_trip('order-42')");
+ await page.locator('#code').fill(edited);await page.locator('#run').click();
+ await page.waitForFunction(()=>!document.querySelector('#run').disabled);
+ assert.match(await page.locator('#status').textContent(),/Completed/);
+ const retainedOutput=await page.locator('#output').textContent();
+ assert.deepEqual(JSON.parse(retainedOutput).reply,['ACK','order-42']);
+ assert.ok(!(await page.locator('#stop').isVisible()));
  await page.locator('#code').fill("raise ValueError('test failure')");await page.locator('#run').click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('reported an error'),undefined,{timeout:240000});
- assert.match(await page.locator('#output').textContent(),/test failure/);
+ assert.match(await page.locator('#error-summary').textContent(),/test failure/);
+ assert.equal(await page.locator('#output').textContent(),retainedOutput);
+ assert.match(await page.locator('#execution-note').textContent(),/edited version.*changed/);
+ await openDownloads(page);
+ const retainedDownload=page.waitForEvent('download');await page.locator('#export').click();
+ const retained=JSON.parse(await fs.readFile(await (await retainedDownload).path(),'utf8'));
+ assert.equal(retained.source,edited);
+ assert.deepEqual(retained.result,JSON.parse(retainedOutput));
  await page.locator('#restore').click();await page.locator('#run').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('Completed'));
  await page.locator('#code').fill('while True: pass');await page.locator('#run').click();await page.waitForFunction(()=>document.querySelector('#status').textContent==='Running your Python…');await page.waitForTimeout(500);await page.locator('#stop').click();
  assert.match(await page.locator('#status').textContent(),/Stopped/);
+ assert.ok(!(await page.locator('#stop').isVisible()));
  await page.locator('#restore').click();await page.locator('#run').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('Completed'),undefined,{timeout:240000});
  const downloaded=page.waitForEvent('download');await page.locator('#download').click();const file=await downloaded;await file.saveAs(artifact('downloaded.py'));assert.deepEqual(JSON.parse(execFileSync('python3',[artifact('downloaded.py')],{encoding:'utf8'})),samples[0]);
  const exported=page.waitForEvent('download');await page.locator('#export').click();const record=await exported;await record.saveAs(artifact('run.json'));const savedRun=JSON.parse(await fs.readFile(artifact('run.json'),'utf8'));assert.deepEqual(savedRun.result,samples[0]);assert.equal(savedRun.runtime.pyzmq,'27.3.0');assert.match(savedRun.runtime.transport,/libzmq/);
- await page.locator('#code').fill(lessons[0].code+'\n# saved edit');assert.match(await page.locator('#execution-note').textContent(),/Code changed/);await page.reload();assert.match(await page.locator('#code').inputValue(),/saved edit/);assert.equal(await page.locator('#done').isChecked(),true);
+ await page.locator('#code').fill(lessons[0].code+'\n# saved edit');assert.match(await page.locator('#execution-note').textContent(),/editor has changed/);await page.reload();assert.match(await page.locator('#code').inputValue(),/saved edit/);assert.equal(await page.locator('#done').isChecked(),true);
+ await page.locator('#restore').click();await page.reload();
+ assert.equal(await page.locator('#code').inputValue(),lessons[0].code);
+ await page.locator('#recover').click();await page.reload();
+ assert.match(await page.locator('#code').inputValue(),/saved edit/);
  // Existing drafts are preserved and download separately; reading marks survive.
- await page.evaluate(()=>{localStorage.setItem('mpl:draft:request-and-reply','import reactivex as rx\n# previous draft');localStorage.removeItem('mpl:draft-runtime:request-and-reply')});
+ await page.evaluate(()=>{
+  localStorage.removeItem('mpl:draft-state:request-and-reply');
+  localStorage.setItem('mpl:draft:request-and-reply','# Existing PyZMQ draft');
+  localStorage.setItem('mpl:draft-runtime:request-and-reply','pyzmq-v1');
+ });
+ await page.reload();assert.equal(await page.locator('#code').inputValue(),'# Existing PyZMQ draft');
+ await page.locator('#restore').click();await page.reload();await page.locator('#recover').click();
+ assert.equal(await page.locator('#code').inputValue(),'# Existing PyZMQ draft');
+ await page.evaluate(()=>{
+  localStorage.removeItem('mpl:draft-state:request-and-reply');
+  localStorage.setItem('mpl:draft:request-and-reply','import reactivex as rx\n# previous draft');
+  localStorage.removeItem('mpl:draft-runtime:request-and-reply');
+ });
  await page.reload();assert.equal(await page.locator('#code').inputValue(),lessons[0].code);
- assert.match(await page.getByRole('button',{name:'Download previous draft'}).textContent(),/previous/);
+ await openDownloads(page);
+ const previous=page.waitForEvent('download');await page.getByRole('button',{name:'Download previous draft'}).click();
+ assert.match(await fs.readFile(await (await previous).path(),'utf8'),/reactivex/);
  assert.equal(await page.locator('#done').isChecked(),true);
- assert.match(await page.evaluate(()=>localStorage.getItem('mpl:legacy-draft:request-and-reply')),/reactivex/);
  await page.locator('#theme').click();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
  await page.screenshot({path:artifact('lesson-dark.png'),fullPage:true});
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:artifact('lesson-mobile.png'),fullPage:true});

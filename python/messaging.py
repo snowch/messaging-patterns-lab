@@ -47,14 +47,16 @@ def multipart(extra_empty=True):
         a.send_multipart(frames);received=b.recv_multipart()
         return {'frames':[v.hex() for v in received],'frame_count':len(received),'payload_bytes':sum(map(len,received))}
 
-def request_state():
+def request_state(send_early=True):
     with lab() as socket:
         server=socket(zmq.REP);client=socket(zmq.REQ);server.bind('inproc://state');client.connect('inproc://state')
         client.send(b'first');server.recv()
-        try:client.send(b'second',zmq.DONTWAIT);state='unexpected acceptance'
-        except zmq.ZMQError as e:
-            if e.errno!=zmq.EFSM:raise
-            state='EFSM: receive required before another send'
+        state='Accepted after receiving the first reply'
+        if send_early:
+            try:client.send(b'second',zmq.DONTWAIT);state='unexpected acceptance'
+            except zmq.ZMQError as e:
+                if e.errno!=zmq.EFSM:raise
+                state='EFSM: receive required before another send'
         server.send(b'ACK');reply=client.recv().decode()
         client.send(b'second');server.recv();server.send(b'ACK');client.recv()
         return {'second_send':state,'first_reply':reply,'successful_exchanges':2}
@@ -83,12 +85,16 @@ def subscriptions(prefix='price'):
         received=[[f.decode() for f in sub.recv_multipart()] for _ in expected]
         return {'prefix':prefix,'received':received,'subscription_seen_by_publisher':True}
 
-def slow_joiner():
+def slow_joiner(publish_early=True):
     with lab() as socket:
-        pub=socket(zmq.XPUB);pub.bind('inproc://early');pub.send_multipart([b'price',b'old'])
+        pub=socket(zmq.XPUB);pub.bind('inproc://early')
+        if publish_early:pub.send_multipart([b'price',b'old'])
         sub=socket(zmq.SUB);sub.subscribe=b'price';sub.connect('inproc://early');pub.recv()
-        pub.send_multipart([b'price',b'new']);seen=[f.decode() for f in sub.recv_multipart()]
-        return {'published':['old','new'],'received':seen,'unconnected_publish_was_not_replayed':True}
+        if not publish_early:pub.send_multipart([b'price',b'old'])
+        pub.send_multipart([b'price',b'new'])
+        messages=[[frame.decode() for frame in sub.recv_multipart()] for _ in range(1 if publish_early else 2)]
+        received=messages[0] if publish_early else [messages[0][0],*(value for _,value in messages)]
+        return {'published':['old','new'],'received':received,'unconnected_publish_was_not_replayed':True if publish_early else None}
 
 def sequence_gap(skip=3):
     with lab() as socket:
@@ -99,12 +105,12 @@ def sequence_gap(skip=3):
         for value in seen:gaps.extend(range(expected,value));expected=value+1
         return {'received_sequences':seen,'missing_sequences':gaps,'policy':'Publisher intentionally omits a sequence; the detector does not diagnose network loss.'}
 
-def nonblocking():
+def nonblocking(message=b'work'):
     with lab() as socket:
         sink=socket(zmq.PULL);source=socket(zmq.PUSH);sink.bind('inproc://empty');source.connect('inproc://empty')
         try:sink.recv(zmq.DONTWAIT);empty=False
         except zmq.Again:empty=True
-        source.send(b'work');value=sink.recv().decode()
+        source.send(message);value=sink.recv().decode()
         return {'empty_receive_would_block':empty,'later_message':value}
 
 def high_water(hwm=2):
@@ -119,12 +125,13 @@ def high_water(hwm=2):
         received=[int(sink.recv()) for _ in range(sent)]
         return {'hwm_each':hwm,'accepted_before_again':sent,'drained':received,'boundary':'Actual inproc PUSH/PULL queue in this pinned libzmq; this is not a TCP byte or RSS limit.'}
 
-def routing():
+def routing(first_route='alpha'):
+    if not first_route or first_route=='beta':raise ValueError('First route must be nonempty and distinct from beta')
     with lab() as socket:
         router=socket(zmq.ROUTER);router.bind('inproc://routes');clients={}
-        for identity in ['alpha','beta']:
-            client=socket(zmq.DEALER);client.identity=identity.encode();client.connect('inproc://routes');clients[identity]=client
-            client.send_multipart([b'job',identity.encode()]);frames=router.recv_multipart()
+        for route,name in [(first_route,'alpha'),('beta','beta')]:
+            client=socket(zmq.DEALER);client.identity=route.encode();client.connect('inproc://routes');clients[route]=client
+            client.send_multipart([b'job',name.encode()]);frames=router.recv_multipart()
             router.send_multipart([frames[0],b'ACK',*frames[1:]])
         return {key:[v.decode() for v in client.recv_multipart()] for key,client in clients.items()}
 
@@ -137,20 +144,21 @@ def mandatory(enabled=True):
             outcome='EHOSTUNREACH'
         return {'mandatory':enabled,'outcome':outcome}
 
-def correlation():
+def correlation(reverse_replies=True):
     with lab() as socket:
         router=socket(zmq.ROUTER);client=socket(zmq.DEALER);router.bind('inproc://ids');client.connect('inproc://ids')
         for identity in ['a','b','c']:client.send_multipart([identity.encode(),identity.upper().encode()])
         requests=[router.recv_multipart() for _ in range(3)]
-        for identity,request,value in reversed(requests):router.send_multipart([identity,request,value])
+        reply_order=reversed(requests) if reverse_replies else requests
+        for identity,request,value in reply_order:router.send_multipart([identity,request,value])
         replies=[client.recv_multipart() for _ in range(3)]
         return {'reply_arrival_order':[row[0].decode() for row in replies],'matched':dict(sorted((key.decode(),value.decode()) for key,value in replies))}
 
-def proxy_exchange():
+def proxy_exchange(job_id='job-1'):
     with peer('proxy') as (ready,process),lab() as socket:
         client=socket(zmq.REQ);worker=socket(zmq.REP)
         client.connect(f"tcp://127.0.0.1:{ready['front']}");worker.connect(f"tcp://127.0.0.1:{ready['back']}")
-        client.send_multipart([b'job-1',b'12']);job=worker.recv_multipart();worker.send_multipart([b'done',*job]);reply=client.recv_multipart()
+        client.send_multipart([job_id.encode(),b'12']);job=worker.recv_multipart();worker.send_multipart([b'done',*job]);reply=client.recv_multipart()
         return {'reply':[v.decode() for v in reply],'proxy_separate_process':True,'mechanism':'Actual zmq.proxy with ROUTER frontend and DEALER backend'}
 
 def retries(deduplicate=True):
@@ -169,18 +177,25 @@ def retries(deduplicate=True):
                 attempts.append({'attempt':2,'reply_available':True,'client_socket':'new REQ'})
         return {'logical_id':'charge-a','attempts':attempts,'effects':effects,'total_effect':sum(effects),'reply':reply,'dedup_store':'Volatile authored set; not a transactional payment service.'}
 
-def credits():
+def credits(return_credit=True):
     with lab() as socket:
         broker=socket(zmq.ROUTER);broker.bind('inproc://credit');workers={}
         for identity in ['w1','w2']:
             worker=socket(zmq.DEALER);worker.identity=identity.encode();worker.connect('inproc://credit');worker.send(b'READY');workers[identity]=worker
         ready=sorted(broker.recv_multipart()[0].decode() for _ in workers)
         assignments=[]
+        blocked_job=None
         for job in range(4):
+            if not ready:
+                blocked_job=job
+                break
             identity=ready.pop(0);broker.send_multipart([identity.encode(),str(job).encode()]);value=workers[identity].recv().decode()
-            workers[identity].send_multipart([b'DONE',value.encode()]);reply=broker.recv_multipart();ready.append(reply[0].decode())
+            workers[identity].send_multipart([b'DONE',value.encode()]);reply=broker.recv_multipart()
+            if return_credit:ready.append(reply[0].decode())
             assignments.append({'job':int(value),'worker':identity})
-        return {'assignments':assignments,'credits_remaining':len(ready),'policy':'Authored one-credit dispatch; workers share a process and no parallel service-time claim is made.'}
+        result={'assignments':assignments,'credits_remaining':len(ready),'policy':'Authored one-credit dispatch; workers share a process and no parallel service-time claim is made.'}
+        if blocked_job is not None:result['blocked_job']=blocked_job
+        return result
 
 def last_value(replay=True):
     with lab() as socket:
