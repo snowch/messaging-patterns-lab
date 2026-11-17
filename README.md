@@ -21,7 +21,7 @@ npm run dev
 # http://localhost:5173/messaging-patterns-lab/
 ```
 
-The pinned container2wasm/Bochs VM and Python/PyZMQ bundle are prepared by `runtime/prepare.py`. First use transfers about 71 MiB. Docker is a build-time dependency; the published site is static. Every editor Run starts a fresh guest. Stop destroys it. Guest state, sockets and files are temporary; drafts and reading marks stay in this browser under `mpl:` keys.
+The pinned container2wasm/Bochs VM and Python/PyZMQ bundle are prepared by `runtime/prepare.py`. First use transfers about 71 MiB. Docker is a build-time dependency; the published site is static. Fast reruns keep Linux ready and start a clean isolated Python process, private files and sockets on every Run. Fresh Linux mode starts a new guest each time. Stop and Reset Linux destroy the guest. Guest state, sockets and files are temporary; drafts and reading marks stay in this browser under `mpl:` keys.
 
 ```sh
 npx playwright install --with-deps chromium
@@ -31,3 +31,9 @@ npm run check
 `check:core` runs exact native examples and variants, the build, links and complete interface checks. The full check additionally compares every published source with actual Chromium/Linux execution and covers errors, startup retry, Stop/restart, source/result downloads, drafts, reading marks and themes. Pages publication splits those Linux investigations across four jobs and waits for every job. Browser tests block external requests; runtime assets are self-hosted.
 
 See [curriculum](docs/curriculum.md), [learning/interface review](docs/review.md), [runtime source/provenance](runtime/README.md) and [component notices](runtime/THIRD-PARTY-NOTICES.md). Original prose is CC BY-NC 4.0 ([LICENSE](LICENSE)); code is Apache-2.0 ([LICENSE-CODE](LICENSE-CODE)). Third-party components retain their own terms. Pieter Hintjens’s book and the ZeroMQ Guide are referenced, not reproduced.
+
+### Faster reruns
+
+On browsers with WebAssembly JavaScript Promise Integration (JSPI), **Fast reruns** keep Linux and trusted Python helpers ready in the current lesson. Every Run gets a new process, private scratch files and new Linux namespaces; Python variables, sockets and writes do not carry over. **Reset Linux** restarts the entire guest. **Fresh Linux** retains the original fresh-guest execution path and is used when JSPI is unavailable. The first Run on a page still starts Linux; only asset bytes, not a running guest, are cached across chapters.
+
+Fast mode has read-only system/runtime directories, a 32 MiB scratch filesystem and no `/proc`; use Fresh Linux for system inspection. The Linux kernel is shared within a fast session. The runtime is for these local learning experiments, not a claim of distributed durability. Run exports identify the mode and session run, guest/process startup and execution phases. `elapsed_ms` measures the complete button-to-result wait, including initialization retries. Source programs are never automatically retried after they start.

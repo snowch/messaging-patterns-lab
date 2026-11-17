@@ -16,7 +16,27 @@ if(courseMenu){
 }
 const main=$('[data-lesson]');
 if(main){
- const lesson=lessons[Number(main.dataset.lesson)], editor=$('#code');let worker,timer,runRecord,busy=false,runGeneration=0,attemptSerial=0;
+ const lesson=lessons[Number(main.dataset.lesson)], editor=$('#code');let worker,timer,runRecord,busy=false,runGeneration=0,attemptSerial=0,runStarted=0;
+ const modeControl=$('#run-mode'),resetRuntime=$('#reset-runtime');
+ const fastSupported=typeof globalThis.WebAssembly?.Suspending==='function'&&typeof globalThis.WebAssembly?.promising==='function';
+ const savedMode=read('run-mode');
+ modeControl.value=fastSupported&&savedMode!=='fresh'?'warm':'fresh';
+ modeControl.querySelector('[value="warm"]').disabled=!fastSupported;
+ const preload=[...new Set([...lesson.code.matchAll(/^(?:from|import) (course|patterns|kafka_lab|live_kafka|recovery_drill)\b/gm)].map(match=>match[1]))];
+ function describeMode(){
+  $('#run-mode-note').textContent=modeControl.value==='warm'?'Fresh Python, files and sockets on each run. Linux stays ready; Reset Linux restarts it.':fastSupported?'A new Linux guest on every run. Use this for system inspection or a fully fresh environment.':'Fast reruns are unavailable in this browser. Each Run starts fresh Linux.';
+ }
+ describeMode();
+ modeControl.onchange=()=>{
+  if(busy)return;
+  save('run-mode',modeControl.value);discardWorker();describeMode();
+  finish('Run mode changed. Run when ready.');
+ };
+ resetRuntime.onclick=()=>{
+  if(busy)return;
+  discardWorker();finish('Linux reset. The next Run starts Linux again.');
+ };
+
  const draftKey='draft-state:'+lesson.slug;
  const oldDraft=read('draft:'+lesson.slug);
  const oldIsPython=read('draft-runtime:'+lesson.slug)==='pyzmq-v1';
@@ -68,7 +88,9 @@ if(main){
  $('#recover').onclick=()=>switchDraft(draft.recovery,'Saved edit recovered.');
  updateDraftControls();
  const runButton=$('#run'),stopButton=$('#stop');
+ function discardWorker(){runGeneration++;attemptSerial++;worker?.terminate();worker=null}
  function state(active,text){
+  modeControl.disabled=active;resetRuntime.disabled=active;resetRuntime.hidden=!worker||modeControl.value==='fresh';
   busy=active;
   const moveFocus=document.activeElement===(active?runButton:stopButton);
   runButton.disabled=active;
@@ -77,7 +99,7 @@ if(main){
   if(moveFocus)(active?stopButton:runButton).focus();
  }
  function finish(message){clearTimeout(timer);$('#runtime-progress').hidden=true;state(false,message)}
- function stop(message){runGeneration++;attemptSerial++;worker?.terminate();worker=null;finish(message)}
+ function stop(message){discardWorker();finish(message)}
  function showError(message,summary){
   const details=String(message).trim();
   summary??=details.split('\n').at(-1);
@@ -119,23 +141,26 @@ if(main){
     $('#status').textContent='Running your Python…';return;
    }
    if(data.type==='error'){
+    if(data.origin==='runtime')discardWorker();
     finish(data.origin==='runtime'?'Runtime reported an error. Click Run in Linux to try again.':'Python reported an error. Check the message below, then edit and run again.');
     showError(data.message,data.origin==='runtime'?data.summary:undefined);
     return;
    }
-   runRecord={lesson:lesson.slug,source,result:data.value.result,stdout:data.value.stdout,runtime:{...data.runtime,initialization_retries:retries}};
+   const elapsed=Math.round(performance.now()-runStarted);
+   if(data.runtime?.warm_fallback){modeControl.value='fresh';describeMode()}
+   runRecord={lesson:lesson.slug,source,result:data.value.result,stdout:data.value.stdout,runtime:{...data.runtime,initialization_retries:retries,elapsed_ms:elapsed}};
    $('#output').textContent=(data.value.stdout?data.value.stdout+'\n':'')+JSON.stringify(data.value.result,null,2);
    $('#completed-run').hidden=false;
-   const elapsed=data.runtime?.timing?.total_ms;
    finish(Number.isFinite(elapsed)?`Completed in ${(elapsed/1000).toFixed(1)} seconds`:'Completed');
    $('#export').disabled=false;
    describeResult();
    visualize(data.value.result);
   };
-  worker.postMessage({source});
+  worker.postMessage({source,mode:modeControl.value,preload});
  }
  $('#run').onclick=()=>{
   if(busy)return;
+  runStarted=performance.now();
   $('#run-error').hidden=true;
   state(true,'Preparing Linux…');
   startAttempt(editor.value,++runGeneration,0);
