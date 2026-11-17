@@ -1,4 +1,6 @@
 import {lessons} from './lessons.mjs';
+const appUrl=new URL(import.meta.url);
+const lessonSource=path=>new URL(path+appUrl.search,appUrl);
 const $=s=>document.querySelector(s);
 const read=k=>{try{return localStorage.getItem('mpl:'+k)}catch{return null}};
 const save=(k,v)=>{try{localStorage.setItem('mpl:'+k,v);return true}catch{return false}};
@@ -90,7 +92,7 @@ if(main){
   const attempt=++attemptSerial;let begun=false;
   clearTimeout(timer);
   timer=setTimeout(()=>stop('Loading timed out. Check your connection and run again.'),300000);
-  worker ||= new Worker(new URL('./worker.js',import.meta.url),{type:'module'});
+  worker ||= new Worker(lessonSource('./worker.js'),{type:'module'});
   const current=()=>busy&&generation===runGeneration&&attempt===attemptSerial;
   worker.onerror=e=>{
    if(!current())return;
@@ -142,7 +144,7 @@ if(main){
  function download(contents,name,type){const url=URL.createObjectURL(new Blob([contents],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
  $('#download').onclick=async()=>{try{
  const names=['messaging.py','peer.py'];
- const modules=Object.fromEntries(await Promise.all(names.map(async name=>{const r=await fetch(new URL('./python/'+name,import.meta.url));if(!r.ok)throw Error('Helper download failed');return [name,await r.text()]})));
+ const modules=Object.fromEntries(await Promise.all(names.map(async name=>{const r=await fetch(lessonSource('./python/'+name));if(!r.ok)throw Error('Helper download failed');return [name,await r.text()]})));
  const setup='# Install: python -m pip install pyzmq==27.3.0\nimport tempfile, pathlib, sys, json\n_lab = tempfile.TemporaryDirectory(prefix="messaging-lab-")\n_modules = '+JSON.stringify(modules)+'\nfor _name, _text in _modules.items():\n    pathlib.Path(_lab.name, _name).write_text(_text)\nsys.path.insert(0, _lab.name)\n\n# Your experiment\n';
  download(setup+editor.value+'\nprint(json.dumps(result, indent=2))\n',lesson.slug+'.py','text/x-python');
  }catch(e){$('#status').textContent=e.message}};
