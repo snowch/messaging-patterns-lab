@@ -22,14 +22,14 @@ await fs.cp('node_modules/@bjorn3/browser_wasi_shim/dist','dist/engine/wasi',{re
 for(const name of ['LICENSE-MIT','LICENSE-APACHE'])await fs.copyFile('node_modules/@bjorn3/browser_wasi_shim/'+name,'dist/engine/wasi/'+name);
 await fs.cp('runtime','dist/runtime',{recursive:true,filter:p=>!p.includes('/wheels')});await fs.cp('harnesses','dist/harnesses',{recursive:true,filter:p=>!p.includes('__pycache__')});
 await fs.writeFile('dist/.nojekyll','');await fs.writeFile('dist/favicon.svg','<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="8" fill="#122824"/><path d="M9 11h22v15H20l-7 5v-5H9z" stroke="#a3ddc2" stroke-width="2" fill="none"/><path d="M14 16h12M14 21h8" stroke="#a3ddc2" stroke-width="2"/></svg>');
-const pageSources=['src/app.js', 'src/book.css', 'src/lessons.mjs', 'src/linux-worker.js', 'src/warm-session.mjs', 'src/wasi-poll.mjs', 'src/runtime-cache.mjs', 'python/messaging.py', 'python/peer.py', 'python/runner.py', 'python/session_runner.py'];
+const pageSources=['src/catalog.mjs','src/app.js', 'src/book.css', 'src/lessons.mjs', 'src/linux-worker.js', 'src/warm-session.mjs', 'src/wasi-poll.mjs', 'src/runtime-cache.mjs', 'python/messaging.py', 'python/peer.py', 'python/runner.py', 'python/session_runner.py'];
 const revisionHash=createHash('sha256');
 for(const file of pageSources)revisionHash.update(await fs.readFile(file));
 const revision=revisionHash.digest('hex').slice(0,12);
 // Keep the page, worker bridge and helpers on the same published build.
-for(const file of ['app.js','worker.js','warm-session.mjs']){
+for(const file of ['app.js','worker.js','warm-session.mjs','lessons.mjs']){
  let source=await fs.readFile('dist/'+file,'utf8');
- for(const dependency of ['lessons.mjs','wasi-poll.mjs','warm-session.mjs','runtime-cache.mjs']){
+ for(const dependency of ['lessons.mjs','catalog.mjs','patterns.mjs','wasi-poll.mjs','warm-session.mjs','runtime-cache.mjs']){
   source=source.replaceAll("'./"+dependency+"'", "'./"+dependency+'?v='+revision+"'");
  }
  await fs.writeFile('dist/'+file,source);
