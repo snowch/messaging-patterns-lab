@@ -1,3 +1,4 @@
+import {renderDiagram} from '../scripts/diagrams.mjs';
 import {chromium} from 'playwright';import {spawn} from 'node:child_process';import fs from 'node:fs/promises';import assert from 'node:assert/strict';
 import {lessons} from '../src/lessons.mjs';import {chapters} from '../src/readings.mjs';import {order,href} from '../src/catalog.mjs';
 assert.equal(lessons.length,20);assert.equal(chapters.length,10);assert.equal(new Set(order.map(x=>x.id)).size,30);
@@ -25,7 +26,8 @@ try{
  await page.locator('#theme').click();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');await page.screenshot({path:'test-results/course-dark.png',fullPage:true});
  const staticPage=await browser.newPage({javaScriptEnabled:false,viewport:{width:390,height:844}});const requested=[];staticPage.on('request',r=>requested.push(r.url()));
  for(const path of [...order.map(x=>href(x.id)),'index.html','about.html','performance.html','advanced/index.html']){
-  assert.equal((await staticPage.goto(base+path)).status(),200);assert.ok(await staticPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),path+' overflows');
+  assert.equal((await staticPage.goto(base+path)).status(),200);
+  if(path.startsWith('lessons/'))assert.equal(await staticPage.locator('.concept-diagram').count(),1,path+' diagram missing');assert.ok(await staticPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),path+' overflows');
  }
  for(const c of chapters){await staticPage.goto(base+'advanced/'+c.slug+'.html');assert.ok((await staticPage.locator('main').innerText()).length>3000,c.slug+' too light')}
  await staticPage.goto(base+'lessons/retry-with-stable-identity.html');await staticPage.locator('.operator-source>summary').click();assert.match(await staticPage.locator('.operator-source code').textContent(),/client\.poll/);assert.ok(await staticPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await staticPage.screenshot({path:'test-results/course-mobile.png',fullPage:true});

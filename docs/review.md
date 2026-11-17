@@ -11,3 +11,10 @@ All 34 course pages pass phone-width inspection without JavaScript. The ten deep
 The complete browser suite and release gate compare every source with its native result. Separate-process exercises are identified; other fixtures deliberately drive socket owners serially. Application policies (credits, duplicate sets, gap detection and latest-value replay) remain separate from libzmq mechanisms. Ephemeral CURVE keys do not configure client authorization. No production throughput, durable recovery, multi-host failover or external TCP access is claimed. Chromium is tested; mobile execution and other browsers require separate validation. This is an implementation review, not a learner study.
 
 The first publication attempt correctly stopped when all Linux jobs received the artifact under the old course’s preview directory. Corrected the workflow destination to `.preview/messaging-patterns-lab` and added an explicit HTTP status assertion before any guest starts. This was release wiring, not a fabricated or failed ZeroMQ result.
+
+
+## Explanatory diagrams
+
+Added pattern-specific semantic HTML/SVG diagrams before lab execution. Request/reply timelines, multipart frame groups, actual pattern-state relationships, branching policies and recovery paths use distinct layouts. Parallel partitions/readers/keyed histories and alternative socket settings use branch diagrams, so arrows do not imply a false serial pipeline. Every figure is labelled conceptual and describes the starter/example boundary; actual execution evidence remains in the console and run exports. Reading and diagrams require no JavaScript or runtime download. Phone checks cover each figure’s containing page and figures remain selectable/readable text.
+
+The browser completion check now waits for Run to become available again. A status containing “startup stalled · retrying” is a nonterminal initialization state and must not be mistaken for a failed program. Source execution is still never automatically retried.
