@@ -5,6 +5,7 @@ import {readPreparedRuntime,writePreparedRuntime} from './runtime-cache.mjs';
 let ready,busy=false;
 const decoder=new TextDecoder(),encoder=new TextEncoder();
 const phase=(message,extra={})=>postMessage({type:'loading',message,...extra});
+const workerUrl=new URL(import.meta.url);
 
 async function inflate(bytes){
  if(typeof DecompressionStream==='undefined')return gunzipSync(bytes);
@@ -51,7 +52,7 @@ async function setup(){
  const prepared=await prepareAssets(await response.json());
  const names=['messaging.py','peer.py','runner.py'];
  const helpers=await Promise.all(names.map(async name=>{
-  const r=await fetch(new URL('./python/'+name,import.meta.url));if(!r.ok)throw Error('Could not load '+name);
+  const r=await fetch(new URL('./python/'+name+workerUrl.search,workerUrl));if(!r.ok)throw Error('Could not load '+name);
   return [name,new Uint8Array(await r.arrayBuffer())];
  }));
  return {module:prepared.module,entries:prepared.entries||indexArchive(prepared.archive),helpers,assetSource:prepared.assetSource};

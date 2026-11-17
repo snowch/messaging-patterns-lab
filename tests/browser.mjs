@@ -25,6 +25,11 @@ try{
  const context=await browser.newContext({viewport:{width:1440,height:1000}});const page=await context.newPage();
  page.setDefaultTimeout(240000);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const requestedSources=[];
+ context.on('request',request=>{
+  const url=new URL(request.url());
+  if(/\/(app\.js|worker\.js|python\/(messaging|peer|runner)\.py)$/.test(url.pathname))requestedSources.push(url);
+ });
  await context.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());
  const base=`http://127.0.0.1:${port}/messaging-patterns-lab/`;
  const landing=await page.goto(base);assert.equal(landing.status(),200,'Prepared course missing from the configured preview path');await page.screenshot({path:artifact('overview-desktop.png'),fullPage:true});
@@ -37,7 +42,7 @@ try{
   let workerRequests=0;
   if(i===0){
    // Stall initialization only. The successful retry still runs real Linux/ZeroMQ.
-   await page.route('**/worker.js',route=>{
+   await page.route(/\/worker\.js\?v=/,route=>{
     workerRequests++;
     return workerRequests<=3?route.fulfill({contentType:'text/javascript',body:"onmessage=()=>postMessage({type:'loading',stage:'boot',message:'Test guest startup pending…'})"}):route.continue();
    });
@@ -55,7 +60,7 @@ try{
    await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('stalled twice'));
    assert.equal(workerRequests,3,'Initialization is bounded to one retry');
    assert.equal(await page.locator('#export').isDisabled(),true);
-   await page.unroute('**/worker.js');
+   await page.unroute(/\/worker\.js\?v=/);
   }
   await page.locator('#run').click();
   try{await page.waitForFunction(()=>!document.querySelector('#run').disabled,undefined,{timeout:240000})}
@@ -81,7 +86,7 @@ try{
    const retried=JSON.parse(await fs.readFile(artifact('initialization-retry.json'),'utf8'));
    assert.ok([0,1].includes(retried.runtime.initialization_retries));
    assert.deepEqual(retried.result,samples[0]);
-   await page.unroute('**/worker.js');
+   await page.unroute(/\/worker\.js\?v=/);
    console.log('PASS startup watchdog: Stop cancels; boot retries are bounded; fresh actual Linux execution matches native.');
   }
   console.log('PASS Linux lesson:',lessons[i].slug);
@@ -190,4 +195,10 @@ try{
  console.log('PASS prepared-asset reuse, startup timing, and fresh guest files/globals across repeated real runs.');
  assert.deepEqual(errors,[]);console.log('PASS: all published Linux/ZeroMQ sources match native results; error/retry, Stop/restart, drafts, completion, themes, mobile and subpath hosting; all static design readings and saved marks.');
  }else console.log(`PASS Linux shard ${shardIndex+1}/${shardCount}: all assigned published sources match native results.`);
+ const app=requestedSources.find(url=>url.pathname.endsWith('/app.js'));
+ const revision=app?.searchParams.get('v');
+ assert.ok(revision,'The page identifies its build');
+ assert.ok(requestedSources.some(url=>url.pathname.endsWith('/worker.js')),'The experiment requests a worker');
+ assert.ok(requestedSources.some(url=>url.pathname.endsWith('/python/messaging.py')),'The experiment requests the Python helper');
+ assert.ok(requestedSources.every(url=>url.searchParams.get('v')===revision),'The page, worker and Python helpers use the same build');
 }finally{await browser?.close();server.kill()}
