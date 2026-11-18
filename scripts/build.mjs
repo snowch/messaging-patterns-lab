@@ -1,3 +1,4 @@
+import {resourceSummary} from './resource-row.mjs';
 import {writeHelperReference,renderLessonReferences,renderReadingReferences} from './references.mjs';
 import {renderDiagram} from './diagrams.mjs';
 import {renderExercise} from './exercise.mjs';
@@ -90,24 +91,21 @@ for(const [i,l] of rawLessons.entries()){
      <pre id="output" tabindex="0"></pre>
      <div id="visual" aria-label="Experiment trace"></div>
     </div>
-    <details class="runtime-help"><summary>Troubleshooting</summary><p>If Python stops responding, restart the environment and try again. Your code and last completed result are kept.</p><button id="reset-runtime" type="button">Restart Python</button></details>
-    <details class="downloads">
-     <summary>Downloads</summary>
+    <details class="runtime-help resource-row">${resourceSummary('Troubleshooting',{icon:'tools'})}<p>If Python stops responding, restart the environment and try again. Your code and last completed result are kept.</p><button id="reset-runtime" type="button">Restart Python</button></details>
+    <details class="downloads resource-row">${resourceSummary('Downloads',{icon:'download'})}
      <div><button id="download" type="button">Download code</button><button id="export" type="button" disabled>Export run</button></div>
     </details>
    </div>
    <h3>Worked result</h3>
    <p>${l.observe}</p>
-   <details class="worked"><summary>Full output from the original example</summary><pre>${esc(JSON.stringify(sampleBy[l.slug],null,2))}</pre><p>The build ran the original editor code to produce this output.</p></details>
+   <details class="worked resource-row">${resourceSummary('Full output from the original example',{icon:'result'})}<pre>${esc(JSON.stringify(sampleBy[l.slug],null,2))}</pre><p>The build ran the original editor code to produce this output.</p></details>
    <div class="change"><h3>${l.inspectOnly?'Read the implementation':'Try one change'}</h3><p>${change}${l.change}</p></div>
   </section>
-  <details class="operator-source">
-   <summary>Inspect the socket implementation</summary>
+  <details class="operator-source resource-row">${resourceSummary('Inspect the socket implementation',{icon:'code'})}
    <p>The editor calls this read-only helper. ${isFirst?'A ZeroMQ context is the object a process uses to create sockets. The program starts the server process. A pipe carries its ready message and port number to the client. The ZeroMQ sockets carry the request and reply. ':''}<a href="../python/messaging.py">Read all socket helpers</a> or <a href="../python/peer.py">read the separate-process code</a>. The code download includes both files.</p>
    <pre><code>${esc(functions[l.fn])}</code></pre>
   </details>
-  <details class="underhood">
-   <summary>Costs, waiting and recovery</summary>
+  <details class="underhood resource-row">${resourceSummary('Costs, waiting and recovery',{icon:'cost'})}
    <div class="table-scroll"><table><thead><tr><th scope="col">Aspect</th><th scope="col">What to account for</th></tr></thead><tbody>${l.costs.map((value,j)=>`<tr><th scope="row">${['Work','Stored information','Message path','Waiting','Recovery'][j]}</th><td>${value}</td></tr>`).join('')}</tbody></table></div>
   </details>
   ${practice(l)}
