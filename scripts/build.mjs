@@ -67,7 +67,7 @@ for(const [i,l] of rawLessons.entries()){
    <div class="workbench">
     <div class="code-cell">
      <div class="cell-head"><label for="code">experiment.py</label><button id="restore" type="button" hidden>Restore code</button><button id="recover" type="button" hidden>Recover saved edit</button></div>
-     
+
      <textarea id="code" rows="4" spellcheck="false" autocapitalize="off" aria-label="Python experiment">${esc(l.code)}</textarea>
      <div class="cell-tools">
       <button id="run" type="button" class="primary">Run</button>
