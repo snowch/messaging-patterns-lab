@@ -1,0 +1,526 @@
+{
+  "request-and-reply": [
+    {
+      "title": "Create sockets and exchange frames",
+      "links": [
+        [
+          "Context",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Context"
+        ],
+        [
+          "Context.socket",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Context.socket"
+        ],
+        [
+          "Socket.connect",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.connect"
+        ],
+        [
+          "Socket.send_string",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.send_string"
+        ],
+        [
+          "Socket.recv_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv_multipart"
+        ],
+        [
+          "libzmq ZMQ_REQ (4.3.5)",
+          "https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_socket.txt#L568"
+        ]
+      ],
+      "note": "The client and server are separate Python processes. Read queue admission separately from the application reply.",
+      "question": "Does send_string returning prove that the handler completed its work?",
+      "answer": "No. It establishes local send behavior. An application reply is separate evidence, and its business meaning depends on the protocol."
+    }
+  ],
+  "preserve-message-frames": [
+    {
+      "title": "Send and receive one multipart message",
+      "links": [
+        [
+          "Socket.send_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.send_multipart"
+        ],
+        [
+          "Socket.recv_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv_multipart"
+        ]
+      ],
+      "note": "Read the sequence-of-bytes contract, including an empty frame.",
+      "question": "Does an empty final frame mean that the receiver got no message?",
+      "answer": "No. It is a zero-byte frame inside a received multipart message. Frame boundaries and message boundaries are separate from payload length."
+    }
+  ],
+  "respect-the-req-state-machine": [
+    {
+      "title": "REQ send/receive ordering",
+      "links": [
+        [
+          "Socket.send",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.send"
+        ],
+        [
+          "Socket.recv",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv"
+        ],
+        [
+          "libzmq ZMQ_REQ (4.3.5)",
+          "https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_socket.txt#L568"
+        ]
+      ],
+      "note": "Read the permitted order of operations for the REQ pattern.",
+      "question": "Does receiving the first reply permit a second send?",
+      "answer": "Yes. A normal REQ alternates send then receive. Trying the second send before that receive violates its state machine."
+    }
+  ],
+  "send-work-down-a-pipeline": [
+    {
+      "title": "Push jobs and pull them",
+      "links": [
+        [
+          "Socket.send_json",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.send_json"
+        ],
+        [
+          "Socket.recv_json",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv_json"
+        ],
+        [
+          "SocketType.PUSH",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketType.PUSH"
+        ],
+        [
+          "SocketType.PULL",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketType.PULL"
+        ],
+        [
+          "libzmq ZMQ_PUSH (4.3.5)",
+          "https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_socket.txt#L305"
+        ]
+      ],
+      "note": "Read serialization separately from the PUSH/PULL distribution pattern.",
+      "question": "Does one PUSH job go to every connected PULL worker?",
+      "answer": "No. A pipeline distributes work among available peers; it is not a publication broadcast."
+    }
+  ],
+  "filter-a-publication": [
+    {
+      "title": "Subscribe to a byte prefix",
+      "links": [
+        [
+          "Socket.setsockopt",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.setsockopt"
+        ],
+        [
+          "SocketOption.SUBSCRIBE",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketOption.SUBSCRIBE"
+        ],
+        [
+          "Socket.send_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.send_multipart"
+        ],
+        [
+          "Socket.recv_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv_multipart"
+        ],
+        [
+          "libzmq ZMQ_SUBSCRIBE (4.3.5)",
+          "https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_setsockopt.txt#L15"
+        ]
+      ],
+      "note": "The subscription matches the beginning of the first frame, not a parsed topic hierarchy.",
+      "question": "Does a prefix of order match only the exact topic order?",
+      "answer": "No. It also matches topics beginning with those bytes, such as orders. An empty prefix subscribes to every message."
+    }
+  ],
+  "meet-the-late-subscriber": [
+    {
+      "title": "Wait for subscription evidence",
+      "links": [
+        [
+          "SocketType.XPUB",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketType.XPUB"
+        ],
+        [
+          "Socket.recv",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv"
+        ],
+        [
+          "Socket.recv_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv_multipart"
+        ],
+        [
+          "libzmq ZMQ_XPUB (4.3.5)",
+          "https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_socket.txt#L254"
+        ]
+      ],
+      "note": "XPUB can expose subscription control messages. Receiving that evidence is different from replaying earlier publications.",
+      "question": "Does a new SUB socket automatically recover messages published before its subscription became active?",
+      "answer": "No. PUB/SUB provides no durable replay history. This helper contrasts an early publication with publication after observed subscription readiness."
+    }
+  ],
+  "detect-a-sequence-gap": [
+    {
+      "title": "Read a publication and inspect its sequence",
+      "links": [
+        [
+          "Socket.recv_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv_multipart"
+        ],
+        [
+          "SocketType.SUB",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketType.SUB"
+        ]
+      ],
+      "note": "The helper authors the sequence numbers and gap detector; neither is inferred by recv_multipart.",
+      "question": "Can noticing a missing sequence number reconstruct the missing payload?",
+      "answer": "No. It identifies an observed gap under the chosen sequence contract. Recovery requires a replay source or another application protocol."
+    }
+  ],
+  "receive-without-blocking": [
+    {
+      "title": "Nonblocking receive and Again",
+      "links": [
+        [
+          "Socket.recv",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv"
+        ],
+        [
+          "Flag.DONTWAIT",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Flag.DONTWAIT"
+        ],
+        [
+          "Again",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Again"
+        ]
+      ],
+      "note": "Read the exception raised when no message can be received immediately.",
+      "question": "Is b\"\" the same observation as an Again exception?",
+      "answer": "No. b\"\" is a successfully received zero-byte message. Again means no message was received by that nonblocking call."
+    }
+  ],
+  "bound-a-socket-queue": [
+    {
+      "title": "Bound outgoing and incoming queues",
+      "links": [
+        [
+          "SocketOption.SNDHWM",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketOption.SNDHWM"
+        ],
+        [
+          "SocketOption.RCVHWM",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketOption.RCVHWM"
+        ],
+        [
+          "Socket.send_string",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.send_string"
+        ],
+        [
+          "Flag.DONTWAIT",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Flag.DONTWAIT"
+        ],
+        [
+          "libzmq ZMQ_SNDHWM (4.3.5)",
+          "https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_setsockopt.txt#L18"
+        ]
+      ],
+      "note": "Read high-water marks and the pattern-specific response to a full queue.",
+      "question": "Does SNDHWM=2 guarantee the process holds at most two messages in total?",
+      "answer": "No. Queue boundaries, peers and transports matter; the option is not a whole-process memory bound. The helper measures actual admission in its bounded fixture."
+    }
+  ],
+  "route-an-envelope": [
+    {
+      "title": "Route by identity and preserve the envelope",
+      "links": [
+        [
+          "SocketType.ROUTER",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketType.ROUTER"
+        ],
+        [
+          "SocketType.DEALER",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketType.DEALER"
+        ],
+        [
+          "SocketOption.ROUTING_ID",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketOption.ROUTING_ID"
+        ],
+        [
+          "Socket.send_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.send_multipart"
+        ],
+        [
+          "Socket.recv_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv_multipart"
+        ],
+        [
+          "libzmq ZMQ_ROUTER (4.3.5)",
+          "https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_socket.txt#L588"
+        ]
+      ],
+      "note": "Read how the ROUTER identity frame is used to choose the next peer.",
+      "question": "Is the routing frame automatically the application request ID?",
+      "answer": "No. It identifies a route. The application must separately define request identity and the meaning of the remaining frames."
+    }
+  ],
+  "reject-an-unknown-route": [
+    {
+      "title": "Make missing routes observable",
+      "links": [
+        [
+          "SocketOption.ROUTER_MANDATORY",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketOption.ROUTER_MANDATORY"
+        ],
+        [
+          "Socket.send_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.send_multipart"
+        ],
+        [
+          "libzmq ZMQ_ROUTER_MANDATORY (4.3.5)",
+          "https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_setsockopt.txt#L16"
+        ]
+      ],
+      "note": "Read the behavior when a ROUTER has no route for the supplied identity.",
+      "question": "Does enabling ROUTER_MANDATORY prove an existing worker handled a message?",
+      "answer": "No. It can make a missing route fail visibly, but route admission is still different from application completion."
+    }
+  ],
+  "match-out-of-order-replies": [
+    {
+      "title": "Separate routing from correlation",
+      "links": [
+        [
+          "SocketType.DEALER",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketType.DEALER"
+        ],
+        [
+          "SocketType.ROUTER",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketType.ROUTER"
+        ],
+        [
+          "Socket.send_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.send_multipart"
+        ],
+        [
+          "Socket.recv_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv_multipart"
+        ]
+      ],
+      "note": "The helper supplies application request IDs and matches replies by those IDs.",
+      "question": "If two replies arrive in reverse order, should the caller assign them by position in the receive list?",
+      "answer": "No. Match each reply to its application ID. Socket routing alone does not infer the business request being answered."
+    }
+  ],
+  "forward-through-a-proxy": [
+    {
+      "title": "Forward between frontend and backend",
+      "links": [
+        [
+          "proxy",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.proxy"
+        ],
+        [
+          "SocketType.ROUTER",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketType.ROUTER"
+        ],
+        [
+          "SocketType.DEALER",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketType.DEALER"
+        ],
+        [
+          "libzmq proxy (4.3.5)",
+          "https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_proxy.txt#L1"
+        ]
+      ],
+      "note": "The separate peer process calls the real zmq.proxy function. The client and worker still own the application protocol.",
+      "question": "Does proxy executing establish that a worker committed a job?",
+      "answer": "No. It forwards messages between sockets. A worker reply or durable receipt must define completion."
+    }
+  ],
+  "retry-with-stable-identity": [
+    {
+      "title": "Poll with a deadline and retry deliberately",
+      "links": [
+        [
+          "Socket.poll",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.poll"
+        ],
+        [
+          "Socket.send_json",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.send_json"
+        ],
+        [
+          "Socket.recv",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv"
+        ]
+      ],
+      "note": "The deadline controls waiting. The helper keeps the same application ID and implements duplicate suppression.",
+      "question": "Does a poll timeout prove that the first attempt had no effect?",
+      "answer": "No. A reply may be delayed or lost after an effect. A retry needs an identity and an explicit effect/receipt contract."
+    }
+  ],
+  "dispatch-with-worker-credit": [
+    {
+      "title": "Application readiness above routed sockets",
+      "links": [
+        [
+          "SocketType.ROUTER",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketType.ROUTER"
+        ],
+        [
+          "SocketType.DEALER",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketType.DEALER"
+        ],
+        [
+          "Socket.recv_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv_multipart"
+        ],
+        [
+          "Socket.send_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.send_multipart"
+        ]
+      ],
+      "note": "The READY/DONE messages and returned credits are authored application messages, not a ZeroMQ worker scheduler.",
+      "question": "Does a known routing identity mean the worker has spare capacity?",
+      "answer": "No. The broker’s credit policy supplies that information. The fixture can withhold a returned credit to show the distinction."
+    }
+  ],
+  "replay-a-cached-value": [
+    {
+      "title": "Subscription controls and cached replay",
+      "links": [
+        [
+          "SocketType.XPUB",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketType.XPUB"
+        ],
+        [
+          "Socket.recv",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv"
+        ],
+        [
+          "Socket.send_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.send_multipart"
+        ],
+        [
+          "libzmq ZMQ_XPUB (4.3.5)",
+          "https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_socket.txt#L254"
+        ]
+      ],
+      "note": "The helper stores a latest value and decides what to replay after subscription evidence.",
+      "question": "Is this helper’s latest-value cache a durable PUB/SUB log?",
+      "answer": "No. It is a volatile application cache with a chosen replay rule; neither publication history nor process-crash recovery is guaranteed."
+    }
+  ],
+  "observe-a-connection": [
+    {
+      "title": "Observe transport events",
+      "links": [
+        [
+          "Socket.get_monitor_socket",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.get_monitor_socket"
+        ],
+        [
+          "Socket.disable_monitor",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.disable_monitor"
+        ],
+        [
+          "libzmq socket monitor (4.3.5)",
+          "https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_socket_monitor.txt#L1"
+        ]
+      ],
+      "note": "Read how monitor events report connection changes and compare them with an application reply.",
+      "question": "Does CONNECTED mean that the server has processed the request?",
+      "answer": "No. It is transport evidence. The helper also performs an application exchange to make that separate observation visible."
+    }
+  ],
+  "choose-connect-and-close-policy": [
+    {
+      "title": "Admission at connect time and closing queues",
+      "links": [
+        [
+          "Socket.connect",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.connect"
+        ],
+        [
+          "Socket.close",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.close"
+        ],
+        [
+          "SocketOption.IMMEDIATE",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketOption.IMMEDIATE"
+        ],
+        [
+          "SocketOption.LINGER",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketOption.LINGER"
+        ],
+        [
+          "libzmq ZMQ_IMMEDIATE (4.3.5)",
+          "https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_setsockopt.txt#L432"
+        ],
+        [
+          "libzmq ZMQ_LINGER (4.3.5)",
+          "https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_setsockopt.txt#L16"
+        ]
+      ],
+      "note": "Read which peers can accept a send and how pending messages are treated on close.",
+      "question": "With LINGER=0, must pending messages have reached a receiver before close returns?",
+      "answer": "No. Pending messages can be discarded. IMMEDIATE and linger solve different parts of the admission/shutdown contract."
+    }
+  ],
+  "encrypt-a-connection": [
+    {
+      "title": "Generate keys and configure CURVE",
+      "links": [
+        [
+          "curve_keypair",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.curve_keypair"
+        ],
+        [
+          "SocketOption.CURVE_SERVER",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketOption.CURVE_SERVER"
+        ],
+        [
+          "SocketOption.CURVE_PUBLICKEY",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketOption.CURVE_PUBLICKEY"
+        ],
+        [
+          "SocketOption.CURVE_SECRETKEY",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketOption.CURVE_SECRETKEY"
+        ],
+        [
+          "SocketOption.CURVE_SERVERKEY",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.SocketOption.CURVE_SERVERKEY"
+        ],
+        [
+          "libzmq curve (4.3.5)",
+          "https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_curve.txt#L1"
+        ]
+      ],
+      "note": "Read server-key configuration separately from the application’s authorization decision.",
+      "question": "Does a successful CURVE exchange prove the caller is allowed to submit every job?",
+      "answer": "No. Transport protection and authentication evidence do not define the service’s authorization policy."
+    }
+  ],
+  "diagnose-the-missing-receipt": [
+    {
+      "title": "Reconcile reply matching and retries",
+      "links": [
+        [
+          "Socket.poll",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.poll"
+        ],
+        [
+          "Socket.send_json",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.send_json"
+        ],
+        [
+          "Socket.recv_multipart",
+          "https://pyzmq.readthedocs.io/en/v27.3.0/api/zmq.html#zmq.Socket.recv_multipart"
+        ]
+      ],
+      "note": "The capstone composes the course correlation and retry helpers. Read the socket contracts while accounting for attempts and effects separately.",
+      "question": "Can fewer visible receipts prove that fewer attempts reached a handler?",
+      "answer": "No. Missing replies leave uncertainty. Use stable identities, recorded effects and a defined receipt contract rather than inferring completion from a count."
+    }
+  ]
+}
