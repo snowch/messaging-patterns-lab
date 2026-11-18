@@ -1,3 +1,4 @@
+import {schedulePreparation} from './runtime-preparation.mjs';
 import {lessons} from './lessons.mjs';
 const appUrl=new URL(import.meta.url);
 const lessonSource=path=>new URL(path+appUrl.search,appUrl);
@@ -17,26 +18,15 @@ if(courseMenu){
 const main=$('[data-lesson]');
 if(main){
  const lesson=lessons[Number(main.dataset.lesson)], editor=$('#code');let worker,timer,runRecord,busy=false,runGeneration=0,attemptSerial=0,runStarted=0;
- const modeControl=$('#run-mode'),resetRuntime=$('#reset-runtime');
- const fastSupported=typeof globalThis.WebAssembly?.Suspending==='function'&&typeof globalThis.WebAssembly?.promising==='function';
- const savedMode=read('run-mode');
- modeControl.value=fastSupported&&savedMode!=='fresh'?'warm':'fresh';
- modeControl.querySelector('[value="warm"]').disabled=!fastSupported;
+ const resetRuntime=$('#reset-runtime');
+ const mode=new URL(location.href).searchParams.get('runtime')==='fresh'?'fresh':'warm';
  const preload=[...new Set([...lesson.code.matchAll(/^(?:from|import) (course|patterns|kafka_lab|live_kafka|recovery_drill)\b/gm)].map(match=>match[1]))];
- function describeMode(){
-  $('#run-mode-note').textContent=modeControl.value==='warm'?'Fresh Python, files and sockets on each run. Linux stays ready; Reset Linux restarts it.':fastSupported?'A new Linux guest on every run. Use this for system inspection or a fully fresh environment.':'Fast reruns are unavailable in this browser. Each Run starts fresh Linux.';
- }
- describeMode();
- modeControl.onchange=()=>{
-  if(busy)return;
-  save('run-mode',modeControl.value);discardWorker();describeMode();
-  finish('Run mode changed. Run when ready.');
- };
+ let preparationTimer;
  resetRuntime.onclick=()=>{
   if(busy)return;
-  discardWorker();finish('Linux reset. The next Run starts Linux again.');
+  discardWorker();finish('Environment cleared. Select Run when ready.');
+  $('#run').focus({preventScroll:true});
  };
-
  const draftKey='draft-state:'+lesson.slug;
  const oldDraft=read('draft:'+lesson.slug);
  const oldIsPython=read('draft-runtime:'+lesson.slug)==='pyzmq-v1';
@@ -88,9 +78,9 @@ if(main){
  $('#recover').onclick=()=>switchDraft(draft.recovery,'Saved edit recovered.');
  updateDraftControls();
  const runButton=$('#run'),stopButton=$('#stop');
- function discardWorker(){runGeneration++;attemptSerial++;worker?.terminate();worker=null}
+ function discardWorker(){cancelPreparation();clearTimeout(preparationTimer);main.dataset.preparation='deferred';runGeneration++;attemptSerial++;worker?.terminate();worker=null}
  function state(active,text){
-  modeControl.disabled=active;resetRuntime.disabled=active;resetRuntime.hidden=!worker||modeControl.value==='fresh';
+  resetRuntime.disabled=active;
   busy=active;
   const moveFocus=document.activeElement===(active?runButton:stopButton);
   runButton.disabled=active;
@@ -109,20 +99,22 @@ if(main){
   $('#error-more').open=false;
   $('#run-error').hidden=false;
  }
- $('#stop').onclick=()=>stop('Stopped · next run starts a fresh runtime');
+ $('#stop').onclick=()=>stop('Stopped. Select Run to start again.');
  function startAttempt(source,generation,retries){
   const attempt=++attemptSerial;let begun=false;
   clearTimeout(timer);
   timer=setTimeout(()=>stop('Loading timed out. Check your connection and run again.'),300000);
-  worker ||= new Worker(lessonSource('./worker.js'),{type:'module'});
+  try{worker ||= new Worker(lessonSource('./worker.js'),{type:'module'})}
+  catch(error){stop('Python could not start. Select Run to try again.');showError(error.message);return}
   const current=()=>busy&&generation===runGeneration&&attempt===attemptSerial;
   worker.onerror=e=>{
    if(!current())return;
-   stop('The Linux environment stopped. Click Run in Linux to try again.');
+   stop('The Linux environment stopped. Click Run to try again.');
    showError(e.message,e.message);
   };
   worker.onmessage=({data})=>{
    if(!current())return;
+   if(preparationMessage(data))return;
    if(data.type==='loading'){
     $('#status').textContent=data.message;const bar=$('#runtime-progress');
     if(bar){bar.hidden=!data.total;if(data.total){bar.max=data.total;bar.value=data.downloaded}}
@@ -142,12 +134,11 @@ if(main){
    }
    if(data.type==='error'){
     if(data.origin==='runtime')discardWorker();
-    finish(data.origin==='runtime'?'Runtime reported an error. Click Run in Linux to try again.':'Python reported an error. Check the message below, then edit and run again.');
+    finish(data.origin==='runtime'?'Runtime reported an error. Click Run to try again.':'Python reported an error. Check the message below, then edit and run again.');
     showError(data.message,data.origin==='runtime'?data.summary:undefined);
     return;
    }
    const elapsed=Math.round(performance.now()-runStarted);
-   if(data.runtime?.warm_fallback){modeControl.value='fresh';describeMode()}
    runRecord={lesson:lesson.slug,source,result:data.value.result,stdout:data.value.stdout,runtime:{...data.runtime,initialization_retries:retries,elapsed_ms:elapsed}};
    $('#output').textContent=(data.value.stdout?data.value.stdout+'\n':'')+JSON.stringify(data.value.result,null,2);
    $('#completed-run').hidden=false;
@@ -156,10 +147,11 @@ if(main){
    describeResult();
    visualize(data.value.result);
   };
-  worker.postMessage({source,mode:modeControl.value,preload});
+  worker.postMessage({source,mode,preload,requestedAt:performance.timeOrigin+runStarted});
  }
  $('#run').onclick=()=>{
   if(busy)return;
+  cancelPreparation();clearTimeout(preparationTimer);
   runStarted=performance.now();
   $('#run-error').hidden=true;
   state(true,'Preparing Linux…');
@@ -180,7 +172,45 @@ if(main){
  const draw=()=>{const row=result.trace[position];label.textContent=`${position+1} / ${result.trace.length}`;prev.disabled=!position;next.disabled=position===result.trace.length-1;view.replaceChildren();const oldLine=panel.querySelector('.watermark-line');oldLine?.remove();if(Number.isFinite(row.watermark)){const line=document.createElement('div');line.className='watermark-line';const marker=document.createElement('span');marker.className='watermark-marker';const upper=Math.max(30,row.maximum||0),lower=Math.min(-10,row.watermark);marker.style.left=((row.watermark-lower)/(upper-lower)*100)+'%';const symbol=document.createElement('b');symbol.textContent='|';marker.append(symbol,document.createTextNode('watermark '+row.watermark+'s'));line.append(marker);line.setAttribute('aria-label','Watermark at '+row.watermark+' seconds on a '+lower+' to '+upper+' second scale');panel.insertBefore(line,view)}for(const [key,value]of Object.entries(row)){const block=document.createElement('div'),caption=document.createElement('span'),text=document.createElement('strong');caption.textContent=key;text.textContent=typeof value==='object'?JSON.stringify(value):String(value);block.append(caption,text);view.append(block)}};
  prev.onclick=()=>{position--;draw()};next.onclick=()=>{position++;draw()};draw();
  }
- addEventListener('pagehide',()=>{runGeneration++;attemptSerial++;clearTimeout(timer);worker?.terminate();worker=null;busy=false});
+ function preparationMessage(data){
+  if(data.type==='prepared'){
+   clearTimeout(preparationTimer);main.dataset.preparation='ready';
+   if(!busy)$('#status').textContent='Ready';
+   return true;
+  }
+  if(data.type==='preparation-error'){
+   clearTimeout(preparationTimer);
+   if(!busy){discardWorker();$('#status').textContent='Python will prepare when you select Run.'}
+   return true;
+  }
+  return false;
+ }
+ function prepareInBackground(){
+  if(busy||worker||mode==='fresh')return;
+  try{
+   const instance=worker=new Worker(lessonSource('./worker.js'),{type:'module'});
+   main.dataset.preparation='loading';
+   $('#status').textContent='Preparing Python in the background…';
+   const failed=()=>{
+    if(worker!==instance||busy)return;
+    discardWorker();$('#status').textContent='Python will prepare when you select Run.';
+   };
+   preparationTimer=setTimeout(failed,300000);
+   instance.onerror=failed;
+   instance.onmessage=({data})=>{
+    if(worker!==instance||busy)return;
+    if(preparationMessage(data))return;
+    if(data.type==='loading'&&data.stage==='boot'){
+     clearTimeout(preparationTimer);preparationTimer=setTimeout(failed,60000);
+    }
+   };
+   instance.postMessage({type:'prepare',preload});
+  }catch{
+   worker?.terminate();worker=null;main.dataset.preparation='deferred';
+  }
+ }
+ const cancelPreparation=schedulePreparation(prepareInBackground);
+ addEventListener('pagehide',()=>{cancelPreparation();clearTimeout(preparationTimer);runGeneration++;attemptSerial++;clearTimeout(timer);worker?.terminate();worker=null;busy=false});
 }
 
 const reading=document.querySelector('[data-reading]');

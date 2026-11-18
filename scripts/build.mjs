@@ -22,14 +22,15 @@ await fs.cp('node_modules/@bjorn3/browser_wasi_shim/dist','dist/engine/wasi',{re
 for(const name of ['LICENSE-MIT','LICENSE-APACHE'])await fs.copyFile('node_modules/@bjorn3/browser_wasi_shim/'+name,'dist/engine/wasi/'+name);
 await fs.cp('runtime','dist/runtime',{recursive:true,filter:p=>!p.includes('/wheels')});await fs.cp('harnesses','dist/harnesses',{recursive:true,filter:p=>!p.includes('__pycache__')});
 await fs.writeFile('dist/.nojekyll','');await fs.writeFile('dist/favicon.svg','<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="8" fill="#122824"/><path d="M9 11h22v15H20l-7 5v-5H9z" stroke="#a3ddc2" stroke-width="2" fill="none"/><path d="M14 16h12M14 21h8" stroke="#a3ddc2" stroke-width="2"/></svg>');
-const pageSources=['src/catalog.mjs','src/app.js', 'src/book.css', 'src/lessons.mjs', 'src/linux-worker.js', 'src/warm-session.mjs', 'src/wasi-poll.mjs', 'src/runtime-cache.mjs', 'python/messaging.py', 'python/peer.py', 'python/runner.py', 'python/session_runner.py'];
+const pageSources=['src/runtime-preparation.mjs','src/catalog.mjs','src/app.js', 'src/book.css', 'src/lessons.mjs', 'src/linux-worker.js', 'src/warm-session.mjs', 'src/wasi-poll.mjs', 'src/runtime-cache.mjs', 'python/messaging.py', 'python/peer.py', 'python/runner.py', 'python/session_runner.py'];
 const revisionHash=createHash('sha256');
 for(const file of pageSources)revisionHash.update(await fs.readFile(file));
 const revision=revisionHash.digest('hex').slice(0,12);
 // Keep the page, worker bridge and helpers on the same published build.
+await fs.copyFile('src/runtime-preparation.mjs','dist/runtime-preparation.mjs');
 for(const file of ['app.js','worker.js','warm-session.mjs','lessons.mjs']){
  let source=await fs.readFile('dist/'+file,'utf8');
- for(const dependency of ['lessons.mjs','catalog.mjs','patterns.mjs','wasi-poll.mjs','warm-session.mjs','runtime-cache.mjs']){
+ for(const dependency of ['runtime-preparation.mjs','lessons.mjs','catalog.mjs','patterns.mjs','wasi-poll.mjs','warm-session.mjs','runtime-cache.mjs']){
   source=source.replaceAll("'./"+dependency+"'", "'./"+dependency+'?v='+revision+"'");
  }
  await fs.writeFile('dist/'+file,source);
@@ -60,16 +61,16 @@ for(const [i,l] of rawLessons.entries()){
   <section id="experiment">
    <h2>Run the experiment</h2>
    <p class="fixture">${l.fixture}</p>
-   <p class="run-instructions">For the original example, click <strong>Restore code</strong> if it is shown, then click <strong>Run in Linux</strong>. Compare your output with the worked result.</p>
-   <details class="runtime-contract"><summary>Runs locally · first use about ${mib} MiB</summary><p>Fast reruns keep Linux ready while starting fresh Python with private files and sockets. Fresh Linux starts a new guest each time.</p><a href="../about.html#runtime">Runtime and reset details →</a></details>
+   <p class="run-instructions">For the original example, click <strong>Restore code</strong> if it is shown, then click <strong>Run</strong>. Compare your output with the worked result.</p>
+<p class="note">Python prepares in the background while you read. First use can download about ${mib} MiB. Your code runs only when you select Run; each run starts with clean experiment state.</p>
    <noscript><style>.workbench,.run-instructions{display:none}</style><p class="note">You can follow the worked result below. Running the code uses JavaScript.</p></noscript>
    <div class="workbench">
     <div class="code-cell">
      <div class="cell-head"><label for="code">experiment.py</label><button id="restore" type="button" hidden>Restore code</button><button id="recover" type="button" hidden>Recover saved edit</button></div>
-     <div class="runtime-controls"><label for="run-mode">Run mode</label><select id="run-mode" aria-describedby="run-mode-note"><option value="warm">Fast reruns</option><option value="fresh">Fresh Linux</option></select><button id="reset-runtime" type="button" hidden>Reset Linux</button></div><p id="run-mode-note" class="runtime-mode-note"></p>
+     
      <textarea id="code" rows="4" spellcheck="false" autocapitalize="off" aria-label="Python experiment">${esc(l.code)}</textarea>
      <div class="cell-tools">
-      <button id="run" type="button" class="primary">Run in Linux</button>
+      <button id="run" type="button" class="primary">Run</button>
       <button id="stop" type="button" hidden disabled>Stop</button>
       <span id="status" role="status"></span>
       <progress id="runtime-progress" hidden aria-label="Runtime download"></progress>
@@ -87,6 +88,7 @@ for(const [i,l] of rawLessons.entries()){
      <pre id="output" tabindex="0"></pre>
      <div id="visual" aria-label="Experiment trace"></div>
     </div>
+    <details class="runtime-help"><summary>Troubleshooting</summary><p>If Python stops responding, restart the environment and try again. Your code and last completed result are kept.</p><button id="reset-runtime" type="button">Restart Python</button></details>
     <details class="downloads">
      <summary>Downloads</summary>
      <div><button id="download" type="button">Download code</button><button id="export" type="button" disabled>Export run</button></div>
@@ -158,10 +160,10 @@ await fs.writeFile('dist/about.html',shell('Field notes',`<main id="main" class=
  <h2>Before you begin</h2>
  <p>Start with basic Python functions, lists, dictionaries and exceptions. Read the setup and the question before each experiment. Run the original code, then try the suggested change. You can also read the worked result and answer the understanding question without running code.</p>
  <p>Use Mark chapter as read to track your place. Try the question and its explanation to check your understanding.</p>
- <h2 id="runtime">What Run in Linux starts</h2>
- <p>Fast reruns keep a temporary Linux environment ready in the current lesson. Each execution starts a fresh Python process with private writable files, sockets and Linux namespaces. Fresh Linux starts a new guest each time. Python uses real ZeroMQ sockets inside that environment. The request/reply and proxy lessons start two separate Python processes. Several other examples use more than one socket inside a single process.</p>
+ <h2 id="runtime">What Run starts</h2>
+ <p>Python prepares automatically while you read an executable lesson. It keeps the environment ready for subsequent runs. Each execution starts a fresh Python process with private writable files, sockets and Linux namespaces. The compatibility runner starts a new guest each time when required. Python uses real ZeroMQ sockets inside that environment. The request/reply and proxy lessons start two separate Python processes. Several other examples use more than one socket inside a single process.</p>
  <p>The first run loads about ${mib} MiB. Use a desktop browser with enough available memory. The reading path works without JavaScript or a Linux download. Chromium is tested for execution.</p>
- <p>Stop and Reset Linux discard the guest, processes and queued messages. They preserve your editor and the last completed output. A new run starts from the example’s setup. This browser saves edited code, reading marks and your theme when storage is available. Download the code if you want a copy outside the browser. Export run saves the last successful output and the code that produced it.</p>
+ <p>Stop and Restart Python discard the guest, processes and queued messages. They preserve your editor and the last completed output. A new run starts from the example’s setup. This browser saves edited code, reading marks and your theme when storage is available. Download the code if you want a copy outside the browser. Export run saves the last successful output and the code that produced it.</p>
  <h2>What the experiments show</h2>
  <p>ZeroMQ performs the local socket operations. The Python examples add their own rules for skipping duplicate IDs, giving permission to send work, detecting gaps and sharing the latest value. Those rules keep their data only for the current run. Test storage, recovery and network failures separately when you need production guarantees.</p>
  <h2>Where your code runs</h2>
@@ -170,7 +172,7 @@ await fs.writeFile('dist/about.html',shell('Field notes',`<main id="main" class=
  <p>Run shows the elapsed time for this browser, including startup. The export records the full button-to-result wait, including initialization retries, in elapsed_ms. Per-attempt timings list preparation, guest startup, isolated-process startup and execution separately. The <a href="performance.html">native benchmark guide</a> explains how to measure a completed local exchange on your own Linux machine.</p>
  <details>
   <summary>Versions, downloads and time limits</summary>
-  <p>The runtime uses CPython 3.12.16, PyZMQ 27.3.0 and libzmq 4.3.5 inside container2wasm/Bochs. The browser checks downloaded assets against their published hashes. When storage is available, the browser can reuse verified assets across chapters. Fast reruns skip repeated boots and trusted helper imports. Writable scratch is limited to 32 MiB, installed system directories are read-only, and /proc is unavailable in fast mode. Choose Fresh Linux for system inspection. Browsers without WebAssembly JSPI use fresh Linux automatically. Navigating to another lesson starts a new session.</p>
+  <p>The runtime uses CPython 3.12.16, PyZMQ 27.3.0 and libzmq 4.3.5 inside container2wasm/Bochs. The browser checks downloaded assets against their published hashes. When storage is available, the browser can reuse verified assets across chapters. Automatic preparation avoids repeated boots and trusted helper imports. Writable scratch is limited to 32 MiB, installed system directories are read-only, and /proc is unavailable in fast mode. The diagnostic full-guest runner supports system inspection. Browsers without WebAssembly JSPI use the compatible full-guest runner automatically. Navigating to another lesson starts a new session.</p>
   <p>The runtime can spend up to five minutes loading assets. If guest startup takes more than 60 seconds, the runtime tries starting the guest again once before Python runs. Once Python starts, it can run for up to three minutes. After that, the environment stops. You can edit the code and try again.</p>
   <p><a href="runtime/README.md">Runtime source and build</a> · <a href="runtime/THIRD-PARTY-NOTICES.md">Component notices</a> · <a href="assets/linux/manifest.json">Runtime hashes</a> · <a href="assets/fonts/README.txt">Font licenses</a></p>
  </details>

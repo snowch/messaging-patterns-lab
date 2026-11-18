@@ -8,6 +8,7 @@ const server=spawn('python3',['-m','http.server','5286','--bind','127.0.0.1','--
 try{
  await new Promise(r=>setTimeout(r,500));browser=await chromium.launch({executablePath:process.env.CI?undefined:'/usr/bin/chromium',args:['--no-sandbox']});
  const base='http://127.0.0.1:5286/messaging-patterns-lab/';const page=await browser.newPage({viewport:{width:1440,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(()=>Object.defineProperty(navigator,'connection',{configurable:true,value:{saveData:true}}));
  await page.goto(base+'lessons/request-and-reply.html');await page.evaluate(()=>document.fonts.ready);
  const menu=page.locator('.course-switcher'),toggle=menu.locator(':scope>summary');
  await toggle.focus();await page.keyboard.press('Enter');assert.equal(await menu.evaluate(e=>e.open),true);assert.equal(await menu.locator('.course-group li>a').count(),30);
@@ -44,7 +45,7 @@ try{
  }
  // Prepared runtime bytes persist across chapters, while a changed manifest
  // and denied storage both fall back to normal runtime preparation.
- const cachePage=await browser.newPage();await cachePage.goto(base);
+ const cachePage=await browser.newPage();await cachePage.addInitScript(()=>Object.defineProperty(navigator,'connection',{configurable:true,value:{saveData:true}}));await cachePage.goto(base);
  assert.equal(await cachePage.evaluate(async()=>{
   const cache=await import('./runtime-cache.mjs');
   return cache.writePreparedRuntime('interface-probe',new Uint8Array([0,97,115,109,1,0,0,0]),new Uint8Array([12,34,56]));
@@ -64,5 +65,5 @@ try{
   return {archive:[...saved.archive],changed,denied,writeDenied};
  }),{archive:[12,34,56],changed:null,denied:null,writeDenied:false});
  await cachePage.close();
-assert.deepEqual(errors,[]);console.log('PASS 30-chapter catalog; keyboard/menu/theme; all 34 static phone pages; substantial readings, implementation inspection and no VM before Run.');
+assert.deepEqual(errors,[]);console.log('PASS 30-chapter catalog; keyboard/menu/theme; all 34 static phone pages; substantial readings, implementation inspection and static reading and Save Data defer runtime preparation.');
 }finally{await browser?.close();server.kill()}
