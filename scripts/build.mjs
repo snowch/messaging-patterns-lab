@@ -1,3 +1,4 @@
+import {writeHelperReference,renderLessonReferences,renderReadingReferences} from './references.mjs';
 import {renderDiagram} from './diagrams.mjs';
 import {renderExercise} from './exercise.mjs';
 import fs from 'node:fs/promises';
@@ -47,6 +48,7 @@ const practice=renderExercise;
 const mark=(id,reading=false)=>`<div class="completion"><label><input id="${reading?'reading-done':'done'}" type="checkbox"> Mark chapter as read</label><span id="${reading?'reading-save':'save-status'}" role="status"></span></div>`;
 const cards=parts.map((part,i)=>`<section class="course-part" id="part-${i+1}"><div class="part-heading"><span>Part ${i+1}</span><h3>${part.title}</h3><p>${part.outcome}</p></div><ol class="chapter-list">${part.items.map(id=>`<li><a class="lesson-card chapter-link" href="${href(id)}"><span class="chapter-number">${String(order.findIndex(x=>x.id===id)+1).padStart(2,'0')}</span><span class="chapter-copy"><strong>${lookup(id).title}</strong><span>${lookup(id).short}</span></span><span class="chapter-kind" data-progress="${id}" data-kind="${id.startsWith('advanced/')?'reading':'lab'}">${id.startsWith('advanced/')?'Reading':'Lab'}</span></a></li>`).join('')}</ol></section>`).join('');
 await fs.writeFile('dist/index.html',shell('Learn messaging patterns with ZeroMQ',`<main id="main" class="course-home"><header class="home-intro"><p class="eyebrow">Hands-on Python lessons</p><h1>Messaging patterns<br>with ZeroMQ.</h1><p class="home-description">Send requests, publish updates and route work between processes. Learn how queues, timeouts and retries affect delivery and completion.</p><div class="home-actions"><a class="primary" href="lessons/request-and-reply.html">Start lesson 1 →</a><a href="#curriculum">Browse the course</a></div><p class="home-meta">20 runnable lessons <span aria-hidden="true">·</span> 10 design readings <span aria-hidden="true">·</span> Basic Python</p></header><section id="curriculum" class="curriculum"><h2>Course contents</h2>${cards}</section><section class="closing"><h2>Continue with event streaming</h2><p>Explore retained logs, event-time windows and stateful recovery in <a href="https://snowch.github.io/event-streaming-lab/">Event Streaming Lab →</a></p></section></main>`));
+await writeHelperReference(shell,['messaging', 'peer']);
 for(const [i,l] of rawLessons.entries()){
  const change = l.changeCall ? `Replace the last line in the editor with <code>result = ${esc(l.changeCall)}</code>. ` : '';
  const isFirst = l.slug === 'request-and-reply';
@@ -109,6 +111,7 @@ for(const [i,l] of rawLessons.entries()){
    <div class="table-scroll"><table><thead><tr><th scope="col">Aspect</th><th scope="col">What to account for</th></tr></thead><tbody>${l.costs.map((value,j)=>`<tr><th scope="row">${['Work','Stored information','Message path','Waiting','Recovery'][j]}</th><td>${value}</td></tr>`).join('')}</tbody></table></div>
   </details>
   ${practice(l)}
+  ${renderLessonReferences(l)}
   <section class="limits"><h3>Experiment scope</h3><p>${l.limit}</p><a href="${l.source}">ZeroMQ reference</a> · <a href="../about.html">Runtime and model boundaries</a></section>
   ${mark(l.slug)}${sequence(l.slug)}
  </main>`;
@@ -142,7 +145,7 @@ for(const [i,c] of chapters.entries()){
   </section>
   ${sections(c.sections.slice(2))}
   ${practice(c)}
-  <section><h2>Primary sources</h2><ul>${c.sources.map(([label,url])=>`<li><a href="${url}">${label}</a></li>`).join('')}</ul></section>
+  ${renderReadingReferences(c)}
   ${mark(id,true)}${sequence(id)}
  </main>`;
  await fs.writeFile('dist/advanced/'+c.slug+'.html',shell(c.title,body,'../'));

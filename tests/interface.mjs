@@ -26,7 +26,7 @@ try{
  await page.locator('#code').focus();await page.keyboard.press('Tab');assert.equal(await page.evaluate(()=>document.activeElement.id),'run');await page.evaluate(()=>scrollTo(0,0));await fs.mkdir('test-results',{recursive:true});await page.screenshot({path:'test-results/course-desktop.png',fullPage:true});
  await page.locator('#theme').click();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');await page.screenshot({path:'test-results/course-dark.png',fullPage:true});
  const staticPage=await browser.newPage({javaScriptEnabled:false,viewport:{width:390,height:844}});const requested=[];staticPage.on('request',r=>requested.push(r.url()));
- for(const path of [...order.map(x=>href(x.id)),'index.html','about.html','performance.html','advanced/index.html']){
+ for(const path of [...order.map(x=>href(x.id)),'index.html','about.html','performance.html','advanced/index.html','helpers.html']){
   assert.equal((await staticPage.goto(base+path)).status(),200);
   if(path.startsWith('lessons/'))assert.equal(await staticPage.locator('.concept-diagram').count(),1,path+' diagram missing');assert.ok(await staticPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),path+' overflows');
  }
@@ -43,6 +43,28 @@ try{
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await page.screenshot({path:'test-results/home-'+width+'.png'});
  }
+ // References work without JavaScript, preserve the experiment in a new tab,
+ // and point directly to existing helper anchors and library API symbols.
+ const refContext=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:844}});
+ const refPage=await refContext.newPage();const referenceRequests=[];
+ refPage.on('request',request=>referenceRequests.push(request.url()));
+ await refPage.goto(base+'lessons/request-and-reply.html');
+ const references=refPage.locator('[data-references]');
+ assert.equal(await references.evaluate(element=>element.open),false);
+ await references.locator(':scope>summary').focus();await refPage.keyboard.press('Enter');
+ assert.equal(await references.evaluate(element=>element.open),true);
+ assert.ok(await references.locator('a').count()>=4);
+ assert.ok(await references.locator('.reference-answer').count()>=1);
+ await references.locator('.reference-answer>summary').first().click();
+ assert.ok((await references.locator('.reference-answer').first().textContent()).length>80);
+ assert.equal(await references.locator('a:not([target="_blank"])').count(),0);
+ assert.ok(await refPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await references.locator(':scope>summary').scrollIntoViewIfNeeded();await refPage.evaluate(()=>scrollBy(0,-100));await refPage.screenshot({path:'test-results/references-phone.png'});
+ await refPage.goto(base+'helpers.html#messaging.round_trip');
+ assert.equal(await refPage.locator('[id="messaging.round_trip"]').count(),1);
+ assert.ok(await refPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ assert.equal(referenceRequests.some(url=>/\/(engine|assets\/linux)\//.test(url)),false);
+ await refContext.close();
  // Prepared runtime bytes persist across chapters, while a changed manifest
  // and denied storage both fall back to normal runtime preparation.
  const cachePage=await browser.newPage();await cachePage.addInitScript(()=>Object.defineProperty(navigator,'connection',{configurable:true,value:{saveData:true}}));await cachePage.goto(base);
