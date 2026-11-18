@@ -21,7 +21,7 @@ npm run dev
 # http://localhost:5173/messaging-patterns-lab/
 ```
 
-The pinned container2wasm/Bochs VM and Python/PyZMQ bundle are prepared by `runtime/prepare.py`. First use transfers about 71 MiB. Docker is a build-time dependency; the published site is static. Fast reruns keep Linux ready and start a clean isolated Python process, private files and sockets on every Run. Fresh Linux mode starts a new guest each time. Stop and Reset Linux destroy the guest. Guest state, sockets and files are temporary; drafts and reading marks stay in this browser under `mpl:` keys.
+The pinned container2wasm/Bochs VM and Python/PyZMQ bundle are prepared by `runtime/prepare.py`. First use transfers about 71 MiB. Docker is a build-time dependency; the published site is static. Automatic execution keeps Linux ready and start a clean isolated Python process, private files and sockets on every Run. The compatibility runner starts a new guest each time. Stop and Restart Python destroy the guest. Guest state, sockets and files are temporary; drafts and reading marks stay in this browser under `mpl:` keys.
 
 ```sh
 npx playwright install --with-deps chromium
@@ -32,8 +32,10 @@ npm run check
 
 See [curriculum](docs/curriculum.md), [learning/interface review](docs/review.md), [runtime source/provenance](runtime/README.md) and [component notices](runtime/THIRD-PARTY-NOTICES.md). Original prose is CC BY-NC 4.0 ([LICENSE](LICENSE)); code is Apache-2.0 ([LICENSE-CODE](LICENSE-CODE)). Third-party components retain their own terms. Pieter Hintjens’s book and the ZeroMQ Guide are referenced, not reproduced.
 
-### Faster reruns
+### Automatic Python preparation
 
-On browsers with WebAssembly JavaScript Promise Integration (JSPI), **Fast reruns** keep Linux and trusted Python helpers ready in the current lesson. Every Run gets a new process, private scratch files and new Linux namespaces; Python variables, sockets and writes do not carry over. **Reset Linux** restarts the entire guest. **Fresh Linux** retains the original fresh-guest execution path and is used when JSPI is unavailable. The first Run on a page still starts Linux; only asset bytes, not a running guest, are cached across chapters.
+Executable lessons prepare Python after rendering while the reader studies the lesson. The interface has one Run action. No editor source executes until Run; every execution uses clean experiment state. Restart Python is in Troubleshooting and preserves code, the last completed result and reading marks. Browser compatibility fallback is automatic.
 
-Fast mode has read-only system/runtime directories, a 32 MiB scratch filesystem and no `/proc`; use Fresh Linux for system inspection. The Linux kernel is shared within a fast session. The runtime is for these local learning experiments, not a claim of distributed durability. Run exports identify the mode and session run, guest/process startup and execution phases. `elapsed_ms` measures the complete button-to-result wait, including initialization retries. Source programs are never automatically retried after they start.
+Speculative preparation waits for a visible page and is disabled for Save Data, 2G connections and devices reporting at most 2 GiB memory. Static reading and design chapters need no runtime. If setup is incomplete when Run is selected, execution waits for it; preparation never produces a result or marks a lesson read. Guest state is discarded on navigation, Stop or Restart Python. Only verified asset bytes persist across chapters.
+
+The automatic runner shares a warm Linux kernel but gives each source a fresh isolated process, private files and sockets. System directories are read-only, scratch is limited to 32 MiB and /proc is absent. For runtime diagnostics only, append `?runtime=fresh` to a lesson URL to force the original full-guest runner. Exports retain internal mode and phase details; `background_ready_on_click` records whether setup finished before the actual click, and `background_preparation` reports background startup separately from `elapsed_ms`.
